@@ -1,0 +1,760 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Easy English Grammar Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Lexend:wght@300;400;500;600&display=swap">
+<style>
+  /* Layout: sticky top bar with section tabs, one centered column of soft panels; pastel blue / mint / indigo */
+  :root {
+    --bg: #f3f6fb;
+    --surface: #ffffff;
+    --surface-2: #eef2fa;
+    --ink: #1f2a44;
+    --muted: #5d6886;
+    --line: #dde3f0;
+    --blue: #3f7fd1;
+    --blue-soft: #dceafb;
+    --green: #2f9a6c;
+    --green-soft: #d8f3e6;
+    --indigo: #5a5fd6;
+    --indigo-soft: #e4e4fb;
+    --red: #d2524f;
+    --red-soft: #fde3e2;
+    --amber: #c9871b;
+    --amber-soft: #fbefd6;
+    --font-display: "Fredoka", "Trebuchet MS", system-ui, sans-serif;
+    --font-body: "Lexend", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #141a2a; --surface: #1c2438; --surface-2: #242e46; --ink: #e8ecf7; --muted: #a2acc6; --line: #2f3a56;
+      --blue: #8ab8f2; --blue-soft: #233a5c; --green: #7fd6ab; --green-soft: #1f4234; --indigo: #a7aaf5; --indigo-soft: #2e3163;
+      --red: #f19a97; --red-soft: #4a2427; --amber: #f0c06a; --amber-soft: #463519; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #141a2a; --surface: #1c2438; --surface-2: #242e46; --ink: #e8ecf7; --muted: #a2acc6; --line: #2f3a56;
+    --blue: #8ab8f2; --blue-soft: #233a5c; --green: #7fd6ab; --green-soft: #1f4234; --indigo: #a7aaf5; --indigo-soft: #2e3163;
+    --red: #f19a97; --red-soft: #4a2427; --amber: #f0c06a; --amber-soft: #463519; color-scheme: dark;
+  }
+  body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.55; }
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
+  .gutter { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .font-display { font-family: var(--font-display); }
+  h1, h2, h3 { text-wrap: balance; }
+  .tnum { font-variant-numeric: tabular-nums; }
+  .fade-in { animation: fadeIn .35s ease both; }
+  .pop { animation: pop .35s cubic-bezier(.3,1.6,.6,1) both; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  @keyframes pop { from { transform: scale(.6); opacity: .3; } to { transform: scale(1); opacity: 1; } }
+  button:focus-visible { outline: 3px solid var(--indigo); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+  #boot { padding: 48px 16px; text-align: center; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script>
+  tailwind.config = {
+    theme: { extend: { colors: {
+      bg: 'var(--bg)', surface: 'var(--surface)', surface2: 'var(--surface-2)', ink: 'var(--ink)', muted: 'var(--muted)', line: 'var(--line)',
+      blue: 'var(--blue)', blueSoft: 'var(--blue-soft)', green: 'var(--green)', greenSoft: 'var(--green-soft)',
+      indigo: 'var(--indigo)', indigoSoft: 'var(--indigo-soft)', red: 'var(--red)', redSoft: 'var(--red-soft)',
+      amber: 'var(--amber)', amberSoft: 'var(--amber-soft)'
+    } } }
+  };
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/lucide-react@0.263.1/dist/umd/lucide-react.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+
+<div id="root"><div id="boot">Загружаем уроки…</div></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo } = React;
+const Lucide = window.LucideReact || {};
+const icon = (name) => Lucide[name] || (() => null);
+const Home = icon('Home'), Clock = icon('Clock'), Sparkles = icon('Sparkles'), Quote = icon('Quote'),
+  Trophy = icon('Trophy'), CheckCircle2 = icon('CheckCircle2'), XCircle = icon('XCircle'), RotateCcw = icon('RotateCcw'),
+  ArrowRight = icon('ArrowRight'), Lightbulb = icon('Lightbulb'), BookOpen = icon('BookOpen'), Target = icon('Target'),
+  HelpCircle = icon('HelpCircle'), ChevronDown = icon('ChevronDown');
+
+/* ---------- Данные ---------- */
+const TENSES = {
+  past: {
+    name: 'Past Simple', ru: 'Прошедшее простое', color: 'indigo',
+    when: 'Действие завершилось в прошлом.',
+    formula: [
+      { label: 'Утверждение', f: 'Subject + V2 (verb-ed)' },
+      { label: 'Отрицание', f: 'Subject + did not + V1' },
+      { label: 'Вопрос', f: 'Did + Subject + V1 ?' },
+    ],
+    markers: ['yesterday', 'last week', 'ago', 'in 2020'],
+    examples: [
+      { type: 'Утверждение', en: 'I watched a film yesterday.', ru: 'Я смотрел фильм вчера.' },
+      { type: 'Отрицание', en: "She didn't go to school last week.", ru: 'Она не ходила в школу на прошлой неделе.' },
+      { type: 'Вопрос', en: 'Did you call your mom?', ru: 'Ты звонил маме?' },
+    ],
+  },
+  present: {
+    name: 'Present Simple', ru: 'Настоящее простое', color: 'blue',
+    when: 'Привычки, факты, регулярные действия.',
+    formula: [
+      { label: 'Утверждение', f: 'Subject + V1 (he/she/it + -s)' },
+      { label: 'Отрицание', f: "Subject + do/does not + V1" },
+      { label: 'Вопрос', f: 'Do/Does + Subject + V1 ?' },
+    ],
+    markers: ['every day', 'usually', 'often', 'always'],
+    examples: [
+      { type: 'Утверждение', en: 'He plays football every day.', ru: 'Он играет в футбол каждый день.' },
+      { type: 'Отрицание', en: "I don't like coffee.", ru: 'Я не люблю кофе.' },
+      { type: 'Вопрос', en: 'Does she live in London?', ru: 'Она живёт в Лондоне?' },
+    ],
+  },
+  future: {
+    name: 'Future Simple', ru: 'Будущее простое', color: 'green',
+    when: 'Решения в момент речи, прогнозы, обещания.',
+    formula: [
+      { label: 'Утверждение', f: 'Subject + will + V1' },
+      { label: 'Отрицание', f: "Subject + will not (won't) + V1" },
+      { label: 'Вопрос', f: 'Will + Subject + V1 ?' },
+    ],
+    markers: ['tomorrow', 'next year', 'soon', 'in two days'],
+    examples: [
+      { type: 'Утверждение', en: 'We will visit Paris next summer.', ru: 'Мы посетим Париж следующим летом.' },
+      { type: 'Отрицание', en: "They won't be late.", ru: 'Они не опоздают.' },
+      { type: 'Вопрос', en: 'Will you help me tomorrow?', ru: 'Ты поможешь мне завтра?' },
+    ],
+  },
+};
+
+const TENSE_QUIZ = [
+  {
+    id: 't1', before: 'I', after: 'to the cinema yesterday.', options: ['go', 'went', 'will go'], answer: 'went',
+    explain: 'Слово «yesterday» (вчера) указывает на прошлое — нужен Past Simple: go → went (неправильный глагол).',
+  },
+  {
+    id: 't2', before: 'She', after: 'tea every morning.', options: ['drinks', 'drank', 'will drink'], answer: 'drinks',
+    explain: '«Every morning» — регулярное действие, это Present Simple. С she добавляем окончание -s: drinks.',
+  },
+  {
+    id: 't3', before: 'We', after: 'you tomorrow.', options: ['call', 'called', 'will call'], answer: 'will call',
+    explain: '«Tomorrow» (завтра) — будущее, нужен Future Simple: will + глагол без изменений.',
+  },
+];
+
+const PRONOUNS = [
+  { p: 'I', ru: 'я', form: 'am', short: "I'm" },
+  { p: 'You', ru: 'ты / вы', form: 'are', short: "You're" },
+  { p: 'He', ru: 'он', form: 'is', short: "He's" },
+  { p: 'She', ru: 'она', form: 'is', short: "She's" },
+  { p: 'It', ru: 'оно / это', form: 'is', short: "It's" },
+  { p: 'We', ru: 'мы', form: 'are', short: "We're" },
+  { p: 'They', ru: 'они', form: 'are', short: "They're" },
+];
+const COMPLEMENTS = [
+  { en: 'happy', ru: 'счастлив(ы)', plural: 'happy' },
+  { en: 'a student', ru: 'студент', plural: 'students' },
+  { en: 'at home', ru: 'дома', plural: 'at home' },
+  { en: 'from Russia', ru: 'из России', plural: 'from Russia' },
+];
+const POS_OPTS = ['am', 'is', 'are'];
+const NEG_OPTS = ['am not', "isn't", "aren't"];
+const Q_OPTS = ['Am', 'Is', 'Are'];
+const TOBE_QUIZ = [
+  { id: 'b1', group: 'pos', options: POS_OPTS, before: 'My brother', after: 'a doctor.', answer: 'is', explain: '«My brother» = he (он), а с he используем is.' },
+  { id: 'b2', group: 'pos', options: POS_OPTS, before: 'The children', after: 'in the park.', answer: 'are', explain: '«The children» — это они (they), множественное число: are.' },
+  { id: 'b3', group: 'pos', options: POS_OPTS, before: 'I', after: 'ready!', answer: 'am', explain: 'С местоимением I всегда используется только am.' },
+  { id: 'b4', group: 'neg', options: NEG_OPTS, before: 'She', after: 'at school today.', answer: "isn't", explain: "She → is, а в отрицании is not = isn't. Она не в школе сегодня." },
+  { id: 'b5', group: 'neg', options: NEG_OPTS, before: 'We', after: 'tired.', answer: "aren't", explain: "We → are, отрицание: are not = aren't. Мы не устали." },
+  { id: 'b6', group: 'neg', options: NEG_OPTS, before: 'I', after: 'hungry.', answer: 'am not', explain: "С I только am not (коротко I'm not). Формы «amn't» в английском нет." },
+  { id: 'b7', group: 'q', options: Q_OPTS, before: '', after: 'you a teacher?', answer: 'Are', explain: 'You → are. В вопросе форма to be встаёт перед подлежащим: Are you…?' },
+  { id: 'b8', group: 'q', options: Q_OPTS, before: '', after: 'it cold today?', answer: 'Is', explain: 'It → is. Вопрос начинается с Is: Is it cold today?' },
+  { id: 'b9', group: 'q', options: Q_OPTS, before: '', after: 'I late?', answer: 'Am', explain: 'I → am. Вопрос: Am I late? — Я опоздал?' },
+];
+const TOBE_GROUPS = [
+  { key: 'pos', title: 'Утверждение: am, is или are?' },
+  { key: 'neg', title: "Отрицание: am not, isn't или aren't?" },
+  { key: 'q', title: 'Вопрос: с чего начать — Am, Is или Are?' },
+];
+
+const IRREGULAR_VERBS = [
+  ['be', 'was / were', 'быть'], ['go', 'went', 'идти, ехать'], ['have', 'had', 'иметь'], ['do', 'did', 'делать'],
+  ['see', 'saw', 'видеть'], ['come', 'came', 'приходить'], ['eat', 'ate', 'есть'], ['drink', 'drank', 'пить'],
+  ['take', 'took', 'брать'], ['make', 'made', 'делать, создавать'], ['buy', 'bought', 'покупать'], ['write', 'wrote', 'писать'],
+  ['read', 'read [red]', 'читать'], ['get', 'got', 'получать'], ['give', 'gave', 'давать'], ['know', 'knew', 'знать'],
+  ['think', 'thought', 'думать'], ['say', 'said', 'сказать'], ['find', 'found', 'находить'], ['sleep', 'slept', 'спать'],
+  ['speak', 'spoke', 'говорить'], ['swim', 'swam', 'плавать'], ['run', 'ran', 'бегать'], ['meet', 'met', 'встречать'],
+];
+
+const IRREGULAR_PLURALS = [
+  ['man', 'men', "men's", 'мужчины'], ['woman', 'women', "women's", 'женщины'], ['child', 'children', "children's", 'дети'],
+  ['person', 'people', "people's", 'люди'], ['ox', 'oxen', "oxen's", 'быки'],
+  ['mouse', 'mice', "mice's", 'мыши'], ['goose', 'geese', "geese's", 'гуси'],
+  ['sheep', 'sheep', "sheep's", 'овцы'], ['fish', 'fish', "fish's", 'рыбы'],
+];
+
+const APOS = [
+  { id: 'a1', word: 'Toms', rest: 'car is red.', pre: '', hint: 'машина Тома', correct: 3, result: "Tom's",
+    explain: 'Том — один человек, имя в единственном числе: добавляем \'s → Tom\'s.' },
+  { id: 'a2', word: 'girls', rest: 'bag', pre: 'the', hint: 'сумка одной девочки', correct: 4, result: "girl's",
+    explain: 'Одна девочка — girl. Единственное число: girl + \'s → the girl\'s bag.' },
+  { id: 'a3', word: 'girls', rest: 'bags', pre: 'the', hint: 'сумки нескольких девочек', correct: 5, result: "girls'",
+    explain: 'Девочек много — girls уже оканчивается на -s, поэтому ставим только апостроф после s: girls\'.' },
+  { id: 'a4', word: 'childrens', rest: 'toys', pre: 'the', hint: 'игрушки детей', correct: 8, result: "children's",
+    explain: 'Children — неправильное множественное число без -s на конце, поэтому добавляем \'s: children\'s.' },
+  { id: 'a5', word: 'parents', rest: 'house', pre: 'my', hint: 'дом моих родителей (мамы и папы)', correct: 7, result: "parents'",
+    explain: 'Родителей двое — parents (мн. ч. на -s). Апостроф ставим после s: parents\'.' },
+];
+
+const TOTAL = TENSE_QUIZ.length + TOBE_QUIZ.length + APOS.length;
+
+/* ---------- Хранилище прогресса ---------- */
+const STORE_KEY = 'eegh-progress-v1';
+function loadProgress() {
+  try { const raw = localStorage.getItem(STORE_KEY); return raw ? JSON.parse(raw) : {}; } catch (e) { return {}; }
+}
+function saveProgress(p) { try { localStorage.setItem(STORE_KEY, JSON.stringify(p)); } catch (e) {} }
+
+/* ---------- Мелкие компоненты ---------- */
+const tone = {
+  blue: { soft: 'bg-blueSoft', text: 'text-blue', border: 'border-blue', solid: 'bg-blue' },
+  indigo: { soft: 'bg-indigoSoft', text: 'text-indigo', border: 'border-indigo', solid: 'bg-indigo' },
+  green: { soft: 'bg-greenSoft', text: 'text-green', border: 'border-green', solid: 'bg-green' },
+};
+
+function SectionTitle({ eyebrow, title, children }) {
+  return (
+    <div className="mb-6">
+      <p className="text-xs uppercase tracking-[0.12em] text-muted font-medium">{eyebrow}</p>
+      <h2 className="font-display text-3xl sm:text-4xl font-semibold mt-1">{title}</h2>
+      {children && <p className="text-muted mt-2 max-w-[62ch]">{children}</p>}
+    </div>
+  );
+}
+
+function Panel({ children, className = '' }) {
+  return <section className={`bg-surface border border-line rounded-2xl p-5 sm:p-6 ${className}`}>{children}</section>;
+}
+
+function HintButton({ id, label, children }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="bg-surface border border-line rounded-2xl overflow-hidden">
+      <button id={id} onClick={() => setOpen((o) => !o)} aria-expanded={open}
+        className={`w-full flex items-center gap-2 px-5 py-3.5 text-left font-medium transition-colors duration-200 ${open ? 'bg-amberSoft' : 'hover:bg-surface2'}`}>
+        <HelpCircle size={19} className="text-amber shrink-0" />
+        <span className="flex-1">{label}</span>
+        <span className="text-xs text-muted hidden sm:inline">{open ? 'Скрыть' : 'Показать'}</span>
+        <ChevronDown size={18} className={`text-muted transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
+      </button>
+      <div className={`grid transition-[grid-template-rows] duration-300 ease-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+        <div className="overflow-hidden" aria-hidden={!open}>
+          <div className="px-5 pb-5 pt-4 border-t border-line">{children}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Feedback({ ok, text }) {
+  return (
+    <div className={`fade-in mt-3 flex gap-2 items-start rounded-xl px-3 py-2.5 text-sm ${ok ? 'bg-greenSoft' : 'bg-redSoft'}`}>
+      {ok ? <CheckCircle2 size={18} className="text-green shrink-0 mt-0.5" /> : <XCircle size={18} className="text-red shrink-0 mt-0.5" />}
+      <span>{ok ? 'Верно! ' : 'Не совсем. '}{text}</span>
+    </div>
+  );
+}
+
+function ChoiceQuestion({ q, index, options, solved, onCorrect }) {
+  const [picked, setPicked] = useState(null);
+  const done = picked === q.answer;
+  return (
+    <div className="border-t border-line pt-4 first:border-t-0 first:pt-0">
+      <p className="text-sm text-muted tnum">Вопрос {index + 1}</p>
+      <p className="text-lg mt-1">
+        {q.before} <span className={`inline-block min-w-[4.5rem] text-center border-b-2 px-1 transition-colors duration-300 ${done ? 'border-green text-green font-semibold' : 'border-line text-muted'}`}>{done ? q.answer : '___'}</span> {q.after}
+      </p>
+      <div className="flex flex-wrap gap-2 mt-3">
+        {options.map((opt) => {
+          const isPicked = picked === opt;
+          const isRight = opt === q.answer;
+          let cls = 'bg-surface2 border-line hover:border-indigo hover:-translate-y-0.5';
+          if (isPicked && isRight) cls = 'bg-greenSoft border-green text-green';
+          if (isPicked && !isRight) cls = 'bg-redSoft border-red text-red';
+          if (done && !isPicked) cls = 'bg-surface2 border-line opacity-50';
+          return (
+            <button key={opt} disabled={done}
+              onClick={() => { setPicked(opt); if (isRight) onCorrect(q.id); }}
+              className={`px-4 py-2 rounded-xl border-2 font-medium transition-all duration-200 ${cls}`}>
+              {opt}
+            </button>
+          );
+        })}
+        {solved && picked === null && <span className="text-xs text-green self-center flex items-center gap-1"><CheckCircle2 size={14} /> уже решено раньше</span>}
+      </div>
+      {picked && <Feedback ok={done} text={done ? q.explain : `Подсказка: ${q.explain}`} />}
+    </div>
+  );
+}
+
+/* ---------- Главная ---------- */
+function HomeView({ progress, go, reset }) {
+  const correct = Object.keys(progress).length;
+  const pct = Math.round((correct / TOTAL) * 100);
+  const bySection = [
+    { key: 'tenses', title: 'Времена глаголов', desc: 'Present, Past, Future Simple на одной шкале времени', icon: Clock, t: 'blue', done: TENSE_QUIZ.filter(q => progress[q.id]).length, total: TENSE_QUIZ.length },
+    { key: 'tobe', title: 'Глагол TO BE', desc: 'Конструктор: am, is или are', icon: Sparkles, t: 'indigo', done: TOBE_QUIZ.filter(q => progress[q.id]).length, total: TOBE_QUIZ.length },
+    { key: 'possessive', title: 'Притяжательный падеж', desc: "Где ставить апостроф: 's или s'", icon: Quote, t: 'green', done: APOS.filter(q => progress[q.id]).length, total: APOS.length },
+  ];
+  const r = 52, c = 2 * Math.PI * r;
+  return (
+    <div className="fade-in space-y-6">
+      <div className="grid gap-6 md:grid-cols-[1.4fr_1fr] items-stretch">
+        <Panel className="flex flex-col justify-center">
+          <p className="text-xs uppercase tracking-[0.12em] text-muted font-medium">Грамматика для начинающих · A1–A2</p>
+          <h1 className="font-display text-4xl sm:text-5xl font-semibold mt-2 leading-tight">Easy English<br /><span className="text-indigo">Grammar Hub</span></h1>
+          <p className="text-muted mt-3 max-w-[52ch]">Три главные темы, понятные схемы и короткие упражнения. Отвечайте на вопросы в каждом разделе — правильные ответы засчитываются в общий прогресс.</p>
+          <button onClick={() => go('tenses')} className="mt-5 self-start inline-flex items-center gap-2 bg-indigo text-surface px-5 py-2.5 rounded-xl font-medium transition-transform duration-200 hover:-translate-y-0.5">
+            Начать с времён <ArrowRight size={18} />
+          </button>
+        </Panel>
+        <Panel className="flex flex-col items-center justify-center text-center">
+          <div className="relative w-[140px] h-[140px]">
+            <svg viewBox="0 0 120 120" className="w-full h-full -rotate-90">
+              <circle cx="60" cy="60" r={r} fill="none" stroke="var(--surface-2)" strokeWidth="12" />
+              <circle cx="60" cy="60" r={r} fill="none" stroke="var(--green)" strokeWidth="12" strokeLinecap="round"
+                strokeDasharray={c} strokeDashoffset={c - (c * correct) / TOTAL} style={{ transition: 'stroke-dashoffset .7s ease' }} />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="font-display text-4xl font-semibold tnum">{correct}</span>
+              <span className="text-xs text-muted tnum">из {TOTAL}</span>
+            </div>
+          </div>
+          <p className="mt-3 font-medium flex items-center gap-2"><Trophy size={18} className="text-amber" /> Правильных ответов: <span className="tnum">{pct}%</span></p>
+          <p className="text-sm text-muted mt-1">{correct === TOTAL ? 'Отлично, все задания выполнены!' : correct === 0 ? 'Пока нет ответов — самое время начать.' : 'Хороший темп, продолжайте!'}</p>
+          {correct > 0 && (
+            <button onClick={reset} className="mt-3 text-sm text-muted inline-flex items-center gap-1.5 hover:text-ink transition-colors">
+              <RotateCcw size={14} /> Сбросить прогресс
+            </button>
+          )}
+        </Panel>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-3">
+        {bySection.map(({ key, title, desc, icon: Ic, t, done, total }) => (
+          <button key={key} onClick={() => go(key)}
+            className="text-left bg-surface border border-line rounded-2xl p-5 transition-all duration-200 hover:-translate-y-1 hover:border-indigo group">
+            <span className={`inline-flex w-10 h-10 rounded-xl items-center justify-center ${tone[t].soft} ${tone[t].text}`}><Ic size={20} /></span>
+            <h3 className="font-display text-xl font-semibold mt-3">{title}</h3>
+            <p className="text-sm text-muted mt-1">{desc}</p>
+            <div className="mt-4 h-2 rounded-full bg-surface2 overflow-hidden">
+              <div className={`h-full ${tone[t].solid} transition-all duration-500`} style={{ width: `${(done / total) * 100}%` }} />
+            </div>
+            <p className="text-xs text-muted mt-1.5 tnum">{done} / {total} заданий</p>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Времена ---------- */
+function TensesView({ progress, onCorrect }) {
+  const [sel, setSel] = useState('present');
+  const order = ['past', 'present', 'future'];
+  const T = TENSES[sel];
+  const tc = tone[T.color];
+  return (
+    <div className="fade-in space-y-6">
+      <SectionTitle eyebrow="Раздел 1" title="Времена глаголов">Нажмите на точку на шкале времени, чтобы увидеть формулу и примеры.</SectionTitle>
+
+      <Panel>
+        <div className="relative px-2 pt-6 pb-2">
+          <div className="absolute left-4 right-4 top-[46px] h-1 rounded-full bg-gradient-to-r from-indigoSoft via-blueSoft to-greenSoft" />
+          <div className="absolute right-2 top-[39px] w-0 h-0 border-y-[9px] border-y-transparent border-l-[14px] border-l-green" />
+          <div className="relative grid grid-cols-3">
+            {order.map((k) => {
+              const t = TENSES[k], on = sel === k, c = tone[t.color];
+              return (
+                <button key={k} onClick={() => setSel(k)} className="flex flex-col items-center gap-2 group">
+                  <span className="text-xs text-muted uppercase tracking-wider">{k === 'past' ? 'Вчера' : k === 'present' ? 'Сейчас / всегда' : 'Завтра'}</span>
+                  <span className={`w-7 h-7 rounded-full border-4 transition-all duration-300 ${on ? `${c.solid} ${c.border} scale-125` : `bg-surface ${c.border} group-hover:scale-110`}`} />
+                  <span className={`font-display text-base sm:text-lg font-semibold transition-colors ${on ? c.text : 'text-muted'}`}>{t.name}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </Panel>
+
+      <Panel key={sel} className="fade-in">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h3 className={`font-display text-2xl font-semibold ${tc.text}`}>{T.name}</h3>
+          <span className="text-muted">{T.ru}</span>
+        </div>
+        <p className="mt-1">{T.when}</p>
+        <div className="grid gap-3 sm:grid-cols-3 mt-4">
+          {T.formula.map((f) => (
+            <div key={f.label} className={`${tc.soft} rounded-xl p-3`}>
+              <p className="text-xs uppercase tracking-wider text-muted">{f.label}</p>
+              <p className="font-mono text-sm mt-1 font-medium">{f.f}</p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-5 space-y-3">
+          {T.examples.map((e, i) => (
+            <div key={e.en} className="fade-in flex gap-3 items-start" style={{ animationDelay: `${i * 80}ms` }}>
+              <span className={`text-xs font-medium px-2 py-1 rounded-lg shrink-0 w-[108px] text-center ${tc.soft} ${tc.text}`}>{e.type}</span>
+              <div className="min-w-0">
+                <p className="font-medium">{e.en}</p>
+                <p className="text-sm text-muted">{e.ru}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-5 flex flex-wrap gap-2 items-center">
+          <span className="text-sm text-muted inline-flex items-center gap-1"><Lightbulb size={15} className="text-amber" /> Слова-подсказки:</span>
+          {T.markers.map((m) => <span key={m} className="text-sm border border-line rounded-full px-3 py-0.5">{m}</span>)}
+        </div>
+      </Panel>
+
+      <HintButton id="hint-verbs" label="Подсказка: неправильные глаголы (Past Simple)">
+        <p className="text-sm text-muted max-w-[62ch]">Эти глаголы в прошедшем времени не получают окончание -ed, их форму нужно запомнить. В отрицании и вопросе возвращаемся к первой форме: <span className="text-ink">I went → I didn't go → Did you go?</span></p>
+        <div className="mt-4 grid gap-x-6 gap-y-0 sm:grid-cols-2">
+          {[0, 1].map((col) => (
+            <div key={col} className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-muted text-xs uppercase tracking-wider">
+                    <th className="font-medium py-2 pr-3">V1</th><th className="font-medium py-2 pr-3">V2 (прошедшее)</th><th className="font-medium py-2">Перевод</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {IRREGULAR_VERBS.slice(col * 12, col * 12 + 12).map(([v1, v2, ru]) => (
+                    <tr key={v1} className="border-t border-line">
+                      <td className="py-1.5 pr-3">{v1}</td>
+                      <td className="py-1.5 pr-3 font-semibold text-indigo">{v2}</td>
+                      <td className="py-1.5 text-muted">{ru}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
+        </div>
+        <p className="text-sm text-muted mt-3"><span className="text-ink">Правильные глаголы</span> просто получают -ed: play → played, watch → watched, live → lived, study → studied.</p>
+      </HintButton>
+
+      <Panel>
+        <h3 className="font-display text-xl font-semibold flex items-center gap-2"><Target size={20} className="text-indigo" /> Мини-тест: выберите правильное время</h3>
+        <div className="mt-4 space-y-5">
+          {TENSE_QUIZ.map((q, i) => <ChoiceQuestion key={q.id} q={q} index={i} options={q.options} solved={!!progress[q.id]} onCorrect={onCorrect} />)}
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+/* ---------- TO BE ---------- */
+function ToBeView({ progress, onCorrect }) {
+  const [pi, setPi] = useState(2);
+  const [mode, setMode] = useState('pos');
+  const [ci, setCi] = useState(0);
+  const P = PRONOUNS[pi];
+  const C = COMPLEMENTS[ci];
+  const pluralSubj = ['We', 'They'].includes(P.p);
+  const comp = pluralSubj ? C.plural : C.en;
+
+  let parts;
+  if (mode === 'pos') parts = [P.p, P.form, comp + '.'];
+  else if (mode === 'neg') parts = [P.p, P.form + ' not', comp + '.'];
+  else parts = [P.form.charAt(0).toUpperCase() + P.form.slice(1), P.p === 'I' ? 'I' : P.p.toLowerCase(), comp + '?'];
+  const shortNote = mode === 'pos' ? `Коротко: ${P.short} ${comp}.` : mode === 'neg'
+    ? `Коротко: ${P.p === 'I' ? "I'm not" : P.form === 'is' ? `${P.p} isn't` : `${P.p} aren't`} ${comp}.` : 'В вопросе форма to be выходит на первое место.';
+  const ruPron = P.ru.split(' / ')[0];
+  const ru = mode === 'pos' ? `${ruPron} — ${C.ru}.` : mode === 'neg' ? `${ruPron} не ${C.ru}.` : `${ruPron} ${C.ru}?`;
+
+  return (
+    <div className="fade-in space-y-6">
+      <SectionTitle eyebrow="Раздел 2" title="Глагол TO BE">В русском мы часто пропускаем «есть», а в английском to be обязателен. Выберите местоимение — конструктор сам подберёт форму и соберёт предложение.</SectionTitle>
+
+      <Panel>
+        <p className="text-sm text-muted mb-2">1. Кто?</p>
+        <div className="flex flex-wrap gap-2">
+          {PRONOUNS.map((p, i) => (
+            <button key={p.p} onClick={() => setPi(i)}
+              className={`px-4 py-2 rounded-xl border-2 transition-all duration-200 ${pi === i ? 'bg-indigo border-indigo text-surface scale-105' : 'bg-surface2 border-line hover:border-indigo'}`}>
+              <span className="font-semibold">{p.p}</span> <span className={`text-xs ${pi === i ? '' : 'text-muted'}`}>{p.ru}</span>
+            </button>
+          ))}
+        </div>
+
+        <p className="text-sm text-muted mb-2 mt-5">2. Форма глагола</p>
+        <div className="grid grid-cols-3 gap-3">
+          {['am', 'is', 'are'].map((f) => {
+            const on = P.form === f;
+            return (
+              <div key={f} className={`rounded-xl border-2 py-3 text-center transition-all duration-300 ${on ? 'border-green bg-greenSoft scale-[1.03]' : 'border-line bg-surface2 opacity-50'}`}>
+                <p className={`font-display text-2xl font-semibold ${on ? 'text-green' : ''}`}>{f}</p>
+                <p className="text-xs text-muted">{f === 'am' ? 'только I' : f === 'is' ? 'he, she, it' : 'you, we, they'}</p>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="grid gap-5 sm:grid-cols-2 mt-5">
+          <div>
+            <p className="text-sm text-muted mb-2">3. Тип предложения</p>
+            <div className="inline-flex bg-surface2 rounded-xl p-1 border border-line">
+              {[['pos', 'Утверждение'], ['neg', 'Отрицание'], ['q', 'Вопрос']].map(([k, l]) => (
+                <button key={k} onClick={() => setMode(k)} className={`px-3 py-1.5 rounded-lg text-sm transition-all duration-200 ${mode === k ? 'bg-surface shadow-sm font-medium text-indigo' : 'text-muted'}`}>{l}</button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-sm text-muted mb-2">4. Окончание</p>
+            <div className="flex flex-wrap gap-2">
+              {COMPLEMENTS.map((c, i) => (
+                <button key={c.en} onClick={() => setCi(i)} className={`px-3 py-1.5 rounded-lg text-sm border transition-all duration-200 ${ci === i ? 'border-blue bg-blueSoft text-blue font-medium' : 'border-line hover:border-blue'}`}>{c.en}</button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6 rounded-2xl bg-surface2 border border-line p-5">
+          <p className="text-xs uppercase tracking-wider text-muted">Готовое предложение</p>
+          <div key={`${pi}-${mode}-${ci}`} className="flex flex-wrap gap-2 mt-3">
+            {parts.map((w, i) => {
+              const isVerb = (mode === 'q' && i === 0) || (mode !== 'q' && i === 1);
+              return (
+                <span key={i} className={`pop px-3 py-1.5 rounded-lg text-xl font-medium ${isVerb ? 'bg-greenSoft text-green' : 'bg-surface border border-line'}`} style={{ animationDelay: `${i * 90}ms` }}>{w}</span>
+              );
+            })}
+          </div>
+          <p className="mt-3 text-muted">{ru.charAt(0).toUpperCase() + ru.slice(1)}</p>
+          <p className="mt-1 text-sm text-muted">{shortNote}</p>
+        </div>
+      </Panel>
+
+      {TOBE_GROUPS.map((g, gi) => (
+        <Panel key={g.key}>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h3 className="font-display text-xl font-semibold flex items-center gap-2"><Target size={20} className="text-indigo" /> {g.title}</h3>
+            <span className="text-xs text-muted tnum">Тест {gi + 1} из {TOBE_GROUPS.length}</span>
+          </div>
+          <div className="mt-4 space-y-5">
+            {TOBE_QUIZ.filter((q) => q.group === g.key).map((q, i) => <ChoiceQuestion key={q.id} q={q} index={i} options={q.options} solved={!!progress[q.id]} onCorrect={onCorrect} />)}
+          </div>
+        </Panel>
+      ))}
+    </div>
+  );
+}
+
+/* ---------- Притяжательный падеж ---------- */
+const COMPARE = [
+  { key: 'one', label: 'Один', base: 'cat', owner: "cat's", thing: 'toy', ru: 'игрушка кошки', rule: "Единственное число → + 's", count: 1 },
+  { key: 'many', label: 'Много (на -s)', base: 'cats', owner: "cats'", thing: 'toys', ru: 'игрушки кошек', rule: "Множественное на -s → только '", count: 3 },
+  { key: 'irr', label: 'Много (без -s)', base: 'children', owner: "children's", thing: 'toys', ru: 'игрушки детей', rule: "Неправильное множественное → + 's", count: 3 },
+];
+
+function ApostropheTask({ t, index, solved, onCorrect }) {
+  const [picked, setPicked] = useState(null);
+  const ok = picked === t.correct;
+  const letters = t.word.split('');
+  const shown = picked === null ? t.word : t.word.slice(0, picked) + "'" + t.word.slice(picked);
+  return (
+    <div className="border-t border-line pt-4 first:border-t-0 first:pt-0">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-sm text-muted tnum">Задание {index + 1} · <span className="text-ink">{t.hint}</span></p>
+        {solved && picked === null && <span className="text-xs text-green inline-flex items-center gap-1"><CheckCircle2 size={14} /> уже решено раньше</span>}
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xl">
+        {t.pre && <span>{t.pre.charAt(0).toUpperCase() + t.pre.slice(1)}</span>}
+        <span className="inline-flex items-center">
+          {letters.map((ch, i) => (
+            <React.Fragment key={i}>
+              {i > 0 && <Gap i={i} picked={picked} ok={ok} disabled={ok} onPick={setPicked} correct={t.correct} onRight={() => onCorrect(t.id)} />}
+              <span className="font-medium">{ch}</span>
+            </React.Fragment>
+          ))}
+          <Gap i={letters.length} picked={picked} ok={ok} disabled={ok} onPick={setPicked} correct={t.correct} onRight={() => onCorrect(t.id)} />
+        </span>
+        <span>{t.rest}</span>
+      </div>
+      {picked !== null && (
+        <Feedback ok={ok} text={ok ? t.explain : `У вас получилось «${shown}». ${t.explain}`} />
+      )}
+    </div>
+  );
+}
+
+function Gap({ i, picked, ok, disabled, onPick, correct, onRight }) {
+  const isPicked = picked === i;
+  let cls = 'text-transparent hover:text-indigo hover:bg-indigoSoft';
+  if (isPicked && ok) cls = 'text-green bg-greenSoft';
+  if (isPicked && !ok) cls = 'text-red bg-redSoft';
+  return (
+    <button aria-label={`Поставить апостроф после буквы ${i}`} disabled={disabled}
+      onClick={() => { onPick(i); if (i === correct) onRight(); }}
+      className={`relative w-4 h-9 -mx-0.5 rounded transition-all duration-200 font-bold ${cls} ${disabled && !isPicked ? 'pointer-events-none' : ''}`}>
+      <span className="absolute inset-x-0 top-0.5">'</span>
+      {!disabled && !isPicked && <span className="absolute left-1/2 -translate-x-1/2 bottom-1 w-1 h-1 rounded-full bg-line" />}
+    </button>
+  );
+}
+
+function PossessiveView({ progress, onCorrect }) {
+  const [sel, setSel] = useState('one');
+  const S = COMPARE.find((c) => c.key === sel);
+  const i = S.owner.indexOf("'");
+  return (
+    <div className="fade-in space-y-6">
+      <SectionTitle eyebrow="Раздел 3" title="Притяжательный падеж">Апостроф показывает, кому что принадлежит: «чей?». Место апострофа зависит от того, один владелец или несколько.</SectionTitle>
+
+      <Panel>
+        <div className="inline-flex flex-wrap bg-surface2 rounded-xl p-1 border border-line">
+          {COMPARE.map((c) => (
+            <button key={c.key} onClick={() => setSel(c.key)} className={`px-3 py-1.5 rounded-lg text-sm transition-all duration-200 ${sel === c.key ? 'bg-surface shadow-sm font-medium text-green' : 'text-muted'}`}>{c.label}</button>
+          ))}
+        </div>
+        <div key={sel} className="fade-in mt-5 grid gap-5 sm:grid-cols-[auto_1fr] items-center">
+          <div className="flex gap-1.5 justify-center sm:justify-start" aria-hidden="true">
+            {Array.from({ length: S.count }).map((_, k) => (
+              <span key={k} className="pop w-12 h-12 rounded-2xl bg-greenSoft text-green flex items-center justify-center font-display text-lg" style={{ animationDelay: `${k * 80}ms` }}>{sel === 'irr' ? 'kid' : 'cat'}</span>
+            ))}
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm text-muted">{S.rule}</p>
+            <p className="font-display text-3xl sm:text-4xl font-semibold mt-1 break-words">
+              the {S.owner.slice(0, i)}<span className="pop inline-block text-green px-0.5">{S.owner.slice(i, i + 1)}</span>{S.owner.slice(i + 1) && <span className="pop inline-block text-green">{S.owner.slice(i + 1)}</span>} {S.thing}
+            </p>
+            <p className="text-muted mt-1">{S.ru}</p>
+          </div>
+        </div>
+        <div className="mt-6 overflow-x-auto">
+          <table className="w-full text-sm min-w-[440px]">
+            <thead>
+              <tr className="text-left text-muted">
+                <th className="font-medium py-2 pr-3">Владелец</th>
+                <th className="font-medium py-2 pr-3">Правило</th>
+                <th className="font-medium py-2">Пример</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className={`border-t border-line transition-colors ${sel === 'one' ? 'bg-greenSoft' : ''}`}><td className="py-2 pr-3 pl-1">Один</td><td className="py-2 pr-3 font-mono">noun + 's</td><td className="py-2">my sister's room</td></tr>
+              <tr className={`border-t border-line transition-colors ${sel === 'many' ? 'bg-greenSoft' : ''}`}><td className="py-2 pr-3 pl-1">Много, на -s</td><td className="py-2 pr-3 font-mono">nouns + '</td><td className="py-2">the students' books</td></tr>
+              <tr className={`border-t border-line transition-colors ${sel === 'irr' ? 'bg-greenSoft' : ''}`}><td className="py-2 pr-3 pl-1">Много, без -s</td><td className="py-2 pr-3 font-mono">men / women / children + 's</td><td className="py-2">the women's team</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </Panel>
+
+      <HintButton id="hint-plurals" label="Подсказка: неправильное множественное число">
+        <p className="text-sm text-muted max-w-[62ch]">Эти слова во множественном числе не оканчиваются на -s. Поэтому к ним, как и к единственному числу, добавляем <span className="text-ink font-semibold">'s</span>.</p>
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full text-sm min-w-[420px]">
+            <thead>
+              <tr className="text-left text-muted text-xs uppercase tracking-wider">
+                <th className="font-medium py-2 pr-3">Один</th><th className="font-medium py-2 pr-3">Много</th><th className="font-medium py-2 pr-3">Чей?</th><th className="font-medium py-2">Перевод</th>
+              </tr>
+            </thead>
+            <tbody>
+              {IRREGULAR_PLURALS.map(([one, many, poss, ru]) => (
+                <tr key={one} className="border-t border-line">
+                  <td className="py-1.5 pr-3">{one}</td>
+                  <td className="py-1.5 pr-3 font-semibold text-green">{many}</td>
+                  <td className="py-1.5 pr-3">{poss.slice(0, -2)}<span className="text-green font-semibold">'s</span></td>
+                  <td className="py-1.5 text-muted">{ru}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-sm text-muted mt-3">Сравните: <span className="text-ink">the boys' room</span> (boys на -s → только ') и <span className="text-ink">the men's room</span> (men без -s → 's).</p>
+      </HintButton>
+
+      <Panel>
+        <h3 className="font-display text-xl font-semibold flex items-center gap-2"><Target size={20} className="text-indigo" /> Вставьте апостроф в правильное место</h3>
+        <p className="text-sm text-muted mt-1">Нажмите на промежуток между буквами (или после слова), куда нужно поставить апостроф.</p>
+        <div className="mt-4 space-y-5">
+          {APOS.map((t, k) => <ApostropheTask key={t.id} t={t} index={k} solved={!!progress[t.id]} onCorrect={onCorrect} />)}
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+/* ---------- Приложение ---------- */
+const NAV = [
+  { key: 'home', label: 'Главная', icon: Home },
+  { key: 'tenses', label: 'Времена глаголов', icon: Clock },
+  { key: 'tobe', label: 'Глагол TO BE', icon: Sparkles },
+  { key: 'possessive', label: 'Притяжательный падеж', icon: Quote },
+];
+
+function App() {
+  const [view, setView] = useState('home');
+  const [progress, setProgress] = useState(loadProgress);
+  const [toast, setToast] = useState(null);
+  useEffect(() => { saveProgress(progress); }, [progress]);
+  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 1800); return () => clearTimeout(t); }, [toast]);
+
+  const onCorrect = (id) => {
+    if (progress[id]) return;
+    setToast('+1 к прогрессу');
+    setProgress((p) => (p[id] ? p : { ...p, [id]: true }));
+  };
+  const go = (k) => { setView(k); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const correct = Object.keys(progress).length;
+
+  return (
+    <div className="min-h-screen">
+      <header className="sticky z-20 bg-surface border-b border-line" style={{ top: 'env(safe-area-inset-top, 0px)' }}>
+        <div className="gutter max-w-5xl mx-auto py-3 flex flex-wrap items-center gap-3 justify-between">
+          <button onClick={() => go('home')} className="flex items-center gap-2">
+            <span className="w-9 h-9 rounded-xl bg-indigo text-surface flex items-center justify-center"><BookOpen size={19} /></span>
+            <span className="font-display text-lg font-semibold">Easy English</span>
+          </button>
+          <span className="text-sm inline-flex items-center gap-1.5 bg-greenSoft text-green px-3 py-1 rounded-full font-medium tnum">
+            <Trophy size={15} /> {correct} / {TOTAL}
+          </span>
+          <nav className="w-full flex gap-1 overflow-x-auto -mb-3 pb-0" aria-label="Разделы">
+            {NAV.map(({ key, label, icon: Ic }) => (
+              <button key={key} onClick={() => go(key)}
+                className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-2.5 text-sm border-b-2 transition-colors duration-200 ${view === key ? 'border-indigo text-indigo font-medium' : 'border-transparent text-muted hover:text-ink'}`}>
+                <Ic size={16} /> {label}
+              </button>
+            ))}
+          </nav>
+        </div>
+      </header>
+
+      <main className="gutter max-w-5xl mx-auto py-8">
+        {view === 'home' && <HomeView progress={progress} go={go} reset={() => setProgress({})} />}
+        {view === 'tenses' && <TensesView progress={progress} onCorrect={onCorrect} />}
+        {view === 'tobe' && <ToBeView progress={progress} onCorrect={onCorrect} />}
+        {view === 'possessive' && <PossessiveView progress={progress} onCorrect={onCorrect} />}
+      </main>
+
+      <footer className="gutter max-w-5xl mx-auto pb-10 text-xs text-muted">Easy English Grammar Hub · прогресс сохраняется в этом браузере</footer>
+
+      {toast && (
+        <div className="pop fixed z-30 bg-green text-surface px-4 py-2 rounded-full font-medium shadow-lg"
+          style={{ bottom: 'calc(20px + env(safe-area-inset-bottom, 0px))', right: 'max(20px, env(safe-area-inset-right, 0px))' }}>
+          {toast}
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
