@@ -82,7 +82,10 @@ const icon = (name) => Lucide[name] || (() => null);
 const Home = icon('Home'), Clock = icon('Clock'), Sparkles = icon('Sparkles'), Quote = icon('Quote'),
   Trophy = icon('Trophy'), CheckCircle2 = icon('CheckCircle2'), XCircle = icon('XCircle'), RotateCcw = icon('RotateCcw'),
   ArrowRight = icon('ArrowRight'), Lightbulb = icon('Lightbulb'), BookOpen = icon('BookOpen'), Target = icon('Target'),
-  HelpCircle = icon('HelpCircle'), ChevronDown = icon('ChevronDown');
+  HelpCircle = icon('HelpCircle'), ChevronDown = icon('ChevronDown'),
+  SpellCheck = icon('SpellCheck'), Volume2 = icon('Volume2'), Loader2 = icon('Loader2'), Square = icon('Square'),
+  Wand2 = icon('Wand2'), AlertTriangle = icon('AlertTriangle'),
+  Menu = icon('Menu'), X = icon('X'), Languages = icon('Languages'), PlayCircle = icon('PlayCircle');
 
 /* ---------- Данные ---------- */
 const TENSES = {
@@ -317,9 +320,12 @@ function HomeView({ progress, go, reset }) {
     <div className="fade-in space-y-6">
       <div className="grid gap-6 md:grid-cols-[1.4fr_1fr] items-stretch">
         <Panel className="flex flex-col justify-center">
-          <p className="text-xs uppercase tracking-[0.12em] text-muted font-medium">Грамматика для начинающих · A1–A2</p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs uppercase tracking-[0.12em] text-muted font-medium">Грамматика для начинающих · A1–A2</p>
+            <AudienceBadge />
+          </div>
           <h1 className="font-display text-4xl sm:text-5xl font-semibold mt-2 leading-tight">Easy English<br /><span className="text-indigo">Grammar Hub</span></h1>
-          <p className="text-muted mt-3 max-w-[52ch]">Три главные темы, понятные схемы и короткие упражнения. Отвечайте на вопросы в каждом разделе — правильные ответы засчитываются в общий прогресс.</p>
+          <p className="text-muted mt-3 max-w-[52ch]">Британский и американский английский с объяснениями на русском: три главные темы, понятные схемы, короткие упражнения и тренажёры. Отвечайте на вопросы в каждом разделе — правильные ответы засчитываются в общий прогресс.</p>
           <button onClick={() => go('tenses')} className="mt-5 self-start inline-flex items-center gap-2 bg-indigo text-surface px-5 py-2.5 rounded-xl font-medium transition-transform duration-200 hover:-translate-y-0.5">
             Начать с времён <ArrowRight size={18} />
           </button>
@@ -356,6 +362,21 @@ function HomeView({ progress, go, reset }) {
               <div className={`h-full ${tone[t].solid} transition-all duration-500`} style={{ width: `${(done / total) * 100}%` }} />
             </div>
             <p className="text-xs text-muted mt-1.5 tnum">{done} / {total} заданий</p>
+          </button>
+        ))}
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        {[
+          { key: 'checker', title: 'Проверка текста', desc: 'Напишите текст — тренажёр найдёт ошибки и объяснит правила', icon: SpellCheck },
+          { key: 'pronounce', title: 'Произношение', desc: 'Введите слово и послушайте, как оно звучит', icon: Volume2 },
+        ].map(({ key, title, desc, icon: Ic }) => (
+          <button key={key} onClick={() => go(key)}
+            className="text-left bg-surface border border-line rounded-2xl p-5 flex gap-4 items-start transition-all duration-200 hover:-translate-y-1 hover:border-indigo">
+            <span className="inline-flex w-10 h-10 shrink-0 rounded-xl items-center justify-center bg-amberSoft text-amber"><Ic size={20} /></span>
+            <span className="min-w-0">
+              <span className="block font-display text-xl font-semibold">{title}</span>
+              <span className="block text-sm text-muted mt-1">{desc}</span>
+            </span>
           </button>
         ))}
       </div>
@@ -690,62 +711,1201 @@ function PossessiveView({ progress, onCorrect }) {
   );
 }
 
-/* ---------- Приложение ---------- */
-const NAV = [
-  { key: 'home', label: 'Главная', icon: Home },
-  { key: 'tenses', label: 'Времена глаголов', icon: Clock },
-  { key: 'tobe', label: 'Глагол TO BE', icon: Sparkles },
-  { key: 'possessive', label: 'Притяжательный падеж', icon: Quote },
+/* ---------- Проверка текста ---------- */
+const CHECK_SAMPLE = 'Yesterday I go to the park with my friend. He have a dog. The dog are very funny and we was happy. Do you likes dogs?';
+
+function buildCheckPrompt(text) {
+  return [
+    'You are a friendly English teacher for Russian-speaking beginners (A1–A2).',
+    'Check the student\'s English text below for grammar, spelling, punctuation and word-choice mistakes.',
+    'Reply with ONLY a JSON object of this shape:',
+    '{"errors":[{"wrong":"exact fragment copied from the text","correct":"fixed fragment","type":"grammar|spelling|punctuation|word choice","explain":"short explanation in Russian, 1-2 sentences, simple words, name the rule"}],"corrected":"the whole text with all fixes","summary":"one encouraging sentence in Russian"}',
+    'Rules: "wrong" must be copied character-for-character from the text and be as short as possible (a few words). List every mistake once, in the order they appear. Do not invent mistakes in correct text. If there are no mistakes, return an empty "errors" array.',
+    '',
+    'Student text:',
+    '"""',
+    text,
+    '"""',
+  ].join('\n');
+}
+
+/* Простая офлайн-проверка (если Claude недоступен, например на GitHub Pages) */
+const OFFLINE_RULES = [
+  { re: /\b(he|she|it)\s+(have)\b/gi, fix: (m, s) => `${s} has`, explain: 'С he/she/it используется has, а не have.' },
+  { re: /\b(he|she|it)\s+(don't|do not)\b/gi, fix: (m, s) => `${s} doesn't`, explain: "С he/she/it отрицание строится через doesn't." },
+  { re: /\b(I)\s+(is|are)\b/g, fix: () => 'I am', explain: 'С I используется только am.' },
+  { re: /\b(he|she|it)\s+(are|am)\b/gi, fix: (m, s) => `${s} is`, explain: 'С he/she/it используется is.' },
+  { re: /\b(we|they|you)\s+(is|am)\b/gi, fix: (m, s) => `${s} are`, explain: 'С we/you/they используется are.' },
+  { re: /\b(we|they|you)\s+(was)\b/gi, fix: (m, s) => `${s} were`, explain: 'В прошедшем времени с we/you/they — were.' },
+  { re: /\b(I|he|she|it)\s+(were)\b/g, fix: (m, s) => `${s} was`, explain: 'В прошедшем времени с I/he/she/it — was.' },
+  { re: /\b(do|does|did)\s+(I|you|we|they|he|she|it)\s+([a-z]{2,}?)(s|ed)\b/gi, fix: (m, a, p, v) => `${a} ${p} ${v}`,
+    explain: 'После do/does/did глагол стоит в начальной форме, без -s и -ed.', guard: (g) => g[3].toLowerCase() === 'ed' || !/s$/i.test(g[2]) },
+  { re: /\ba\s+([aeiou]\w*)/gi, fix: (m, w) => `${m[0]}n ${w}`, explain: 'Перед словом, которое начинается с гласного звука, пишем an.', guard: (g) => !/^(uni|use|usu|eu|one|once)/i.test(g[0]) },
+  { re: /\bi\b/g, fix: () => 'I', explain: 'Местоимение I всегда пишется с большой буквы.' },
+  { re: /\b(yesterday|last \w+|ago)\b[^.?!]*?\b(I|we|they|you|he|she)\s+(go|have|see|come|eat|drink|buy|take|make|do)\b/gi,
+    fix: null, explain: 'Есть слово-маркер прошлого (yesterday, last…, ago) — нужен Past Simple (V2).' },
 ];
+function offlineCheck(text) {
+  const errors = [];
+  OFFLINE_RULES.forEach((r) => {
+    text.replace(r.re, (...args) => {
+      const m = args[0];
+      const groups = args.slice(1, -2);
+      if (r.guard && !r.guard(groups)) return m;
+      if (r.fix) errors.push({ wrong: m, correct: r.fix(m, ...groups), type: 'grammar', explain: r.explain, index: args[args.length - 2] });
+      else {
+        const verb = groups[2];
+        const map = { go: 'went', have: 'had', see: 'saw', come: 'came', eat: 'ate', drink: 'drank', buy: 'bought', take: 'took', make: 'made', do: 'did' };
+        const frag = `${groups[1]} ${verb}`;
+        errors.push({ wrong: frag, correct: `${groups[1]} ${map[verb.toLowerCase()]}`, type: 'grammar', explain: r.explain, index: args[args.length - 2] + m.lastIndexOf(frag) });
+      }
+      return m;
+    });
+  });
+  errors.sort((a, b) => a.index - b.index);
+  const seen = new Set();
+  return errors.filter((e) => { const k = e.index + e.wrong; if (seen.has(k)) return false; seen.add(k); return true; });
+}
+
+/* LanguageTool: онлайн-база правил английской грамматики (используется вне Claude) */
+const LT_URL = 'https://api.languagetool.org/v2/check';
+const LT_CATEGORY_RU = {
+  GRAMMAR: 'Грамматика: форма слова не согласуется с другими словами в предложении.',
+  TYPOS: 'Орфография: слово написано с ошибкой или такого слова нет.',
+  PUNCTUATION: 'Пунктуация: проверьте знаки препинания.',
+  CASING: 'Заглавные буквы: предложение, имена и местоимение I пишутся с большой буквы.',
+  CONFUSED_WORDS: 'Похожие слова: возможно, перепутаны слова, которые звучат или пишутся похоже.',
+  COLLOCATIONS: 'Сочетание слов: так обычно не говорят, носитель сказал бы иначе.',
+  REDUNDANCY: 'Лишнее слово: в предложении повтор или лишнее слово.',
+  STYLE: 'Стиль: так можно сказать, но лучше иначе.',
+  TYPOGRAPHY: 'Типографика: лишний пробел, кавычки или тире.',
+  SEMANTICS: 'Смысл: проверьте, что предложение значит то, что вы хотели.',
+  MISC: 'Другое: проверьте это место.',
+};
+const LT_TYPE_RU = { GRAMMAR: 'грамматика', TYPOS: 'орфография', PUNCTUATION: 'пунктуация', CASING: 'заглавные буквы', CONFUSED_WORDS: 'похожие слова', STYLE: 'стиль', TYPOGRAPHY: 'типографика', REDUNDANCY: 'лишнее', COLLOCATIONS: 'сочетание слов' };
+
+async function languageToolCheck(text, signal) {
+  const body = new URLSearchParams({ text, language: 'en-US', motherTongue: 'ru', level: 'default' });
+  const res = await fetch(LT_URL, { method: 'POST', body, signal, headers: { Accept: 'application/json' } });
+  if (res.status === 429) { const err = new Error('rate'); err.code = 'lt_rate'; throw err; }
+  if (!res.ok) throw new Error('LanguageTool HTTP ' + res.status);
+  const data = await res.json();
+  const matches = Array.isArray(data.matches) ? data.matches : [];
+  const errors = matches
+    .filter((m) => typeof m.offset === 'number' && m.length > 0)
+    .map((m) => {
+      const cat = (m.rule && m.rule.category && m.rule.category.id) || 'MISC';
+      const wrong = text.substr(m.offset, m.length);
+      const correct = (m.replacements && m.replacements[0] && m.replacements[0].value) || '';
+      return {
+        wrong, correct: correct || '—', index: m.offset, type: LT_TYPE_RU[cat] || 'другое',
+        explain: LT_CATEGORY_RU[cat] || LT_CATEGORY_RU.MISC,
+        original: m.message || '', alts: (m.replacements || []).slice(1, 4).map((r) => r.value),
+      };
+    })
+    .sort((a, b) => a.index - b.index);
+  let corrected = text;
+  [...errors].reverse().forEach((e) => { if (e.correct !== '—') corrected = corrected.slice(0, e.index) + e.correct + corrected.slice(e.index + e.wrong.length); });
+  return { errors, corrected };
+}
+
+/* Найти фрагменты ошибок в тексте по порядку, чтобы подсветить их */
+function locateErrors(text, errors) {
+  const spans = [];
+  let from = 0;
+  errors.forEach((e, i) => {
+    if (!e.wrong) return;
+    if (typeof e.index === 'number' && text.substr(e.index, e.wrong.length) === e.wrong) {
+      if (!spans.some((s) => e.index < s.end && e.index + e.wrong.length > s.start)) spans.push({ start: e.index, end: e.index + e.wrong.length, i });
+      return;
+    }
+    let at = text.indexOf(e.wrong, from);
+    if (at < 0) at = text.toLowerCase().indexOf(e.wrong.toLowerCase());
+    if (at < 0) return;
+    if (spans.some((s) => at < s.end && at + e.wrong.length > s.start)) return;
+    spans.push({ start: at, end: at + e.wrong.length, i });
+    from = at + e.wrong.length;
+  });
+  spans.sort((a, b) => a.start - b.start);
+  const parts = [];
+  let pos = 0;
+  spans.forEach((s) => {
+    if (s.start > pos) parts.push({ t: text.slice(pos, s.start) });
+    parts.push({ t: text.slice(s.start, s.end), i: s.i });
+    pos = s.end;
+  });
+  if (pos < text.length) parts.push({ t: text.slice(pos) });
+  return parts;
+}
+
+const SAMPLE_ERRORS = {
+  not_granted: 'Проверка через Claude не разрешена для этой страницы. Включена простая проверка.',
+  sampling_disabled: 'Claude недоступен для этого аккаунта. Включена простая проверка.',
+  rate_limited: 'Слишком много проверок подряд. Подождите немного и попробуйте снова.',
+  session_expired: 'Сессия истекла — войдите в Claude заново.',
+  refused: 'Claude не смог проверить этот текст. Попробуйте изменить его.',
+  invalid_json: 'Ответ пришёл в неожиданном виде. Нажмите «Проверить» ещё раз.',
+  prompt_too_large: 'Текст слишком длинный. Проверяйте по частям.',
+};
+const HIDE_CODES = ['not_granted', 'sampling_disabled', 'not_declared', 'capability_disabled', 'capability_removed'];
+
+function CheckerView() {
+  const [text, setText] = useState(CHECK_SAMPLE);
+  const [sample, setSample] = useState(undefined); // undefined: ждём, null: нет Claude
+  const [status, setStatus] = useState('idle');
+  const [result, setResult] = useState(null);
+  const [checked, setChecked] = useState('');
+  const [note, setNote] = useState('');
+  const [active, setActive] = useState(null);
+  const [ctl, setCtl] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    if (!window.claude || typeof window.claude.use !== 'function') { setSample(null); return; }
+    window.claude.use('sample').then((s) => { if (alive) setSample(s || null); }).catch(() => alive && setSample(null));
+    return () => { alive = false; };
+  }, []);
+
+  const runOffline = (src, why) => {
+    const errors = offlineCheck(src);
+    let corrected = src;
+    [...errors].sort((a, b) => b.index - a.index).forEach((e) => { corrected = corrected.slice(0, e.index) + e.correct + corrected.slice(e.index + e.wrong.length); });
+    setResult({ errors, corrected, summary: errors.length ? 'Простая проверка нашла типичные ошибки. Она знает не все правила.' : 'Простая проверка ошибок не нашла, но она знает только базовые правила.', engine: 'offline' });
+    setNote(why || '');
+    setStatus('done');
+  };
+
+  const check = async () => {
+    const src = text.trim();
+    if (!src) return;
+    setChecked(src); setActive(null); setNote(''); setResult(null);
+    const c = new AbortController(); setCtl(c);
+    setStatus('loading');
+    try {
+      if (sample) {
+        try {
+          const data = await sample.json(buildCheckPrompt(src), { signal: c.signal });
+          const errors = Array.isArray(data && data.errors) ? data.errors.filter((e) => e && e.wrong) : [];
+          setResult({ errors, corrected: String((data && data.corrected) || src), summary: String((data && data.summary) || ''), engine: 'claude' });
+          setStatus('done');
+          return;
+        } catch (e) {
+          const code = e && e.code;
+          if (code === 'cancelled') { setStatus('idle'); return; }
+          if (HIDE_CODES.includes(code)) setSample(null);
+          else { setNote(SAMPLE_ERRORS[code] || 'Не удалось связаться с Claude. Попробуйте ещё раз.'); setStatus('error'); return; }
+        }
+      }
+      try {
+        const lt = await languageToolCheck(src, c.signal);
+        const n = lt.errors.length;
+        setResult({ ...lt, engine: 'lt', summary: n ? 'Нажмите на ошибку, чтобы увидеть объяснение и варианты исправления.' : 'Отлично! LanguageTool не нашёл ошибок в этом тексте.' });
+        setStatus('done');
+      } catch (e) {
+        if (e && e.name === 'AbortError') { setStatus('idle'); return; }
+        runOffline(src, e && e.code === 'lt_rate'
+          ? 'Слишком много проверок за минуту. Пока работает простая проверка, через минуту снова будет доступна полная.'
+          : 'Не удалось подключиться к базе правил LanguageTool (нет интернета или сервис занят). Включена простая проверка.');
+      }
+    } finally { setCtl(null); }
+  };
+
+  const parts = result ? locateErrors(checked, result.errors) : [];
+  const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+
+  return (
+    <div className="fade-in space-y-6">
+      <SectionTitle eyebrow="Тренажёр" title="Проверка текста">Напишите несколько предложений по-английски. Тренажёр найдёт ошибки, подсветит их и объяснит каждое правило по-русски.</SectionTitle>
+
+      <Panel>
+        <label htmlFor="check-text" className="text-sm text-muted">Ваш текст на английском</label>
+        <textarea id="check-text" value={text} onChange={(e) => setText(e.target.value)} rows={5} maxLength={3000}
+          placeholder="Например: My sister like music and she play the guitar."
+          className="mt-2 w-full rounded-xl border-2 border-line bg-surface2 p-3 text-base leading-relaxed outline-none transition-colors duration-200 focus:border-indigo resize-y" />
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          {status === 'loading' ? (
+            <button onClick={() => ctl && ctl.abort()} className="inline-flex items-center gap-2 border-2 border-line px-5 py-2.5 rounded-xl font-medium transition-colors hover:border-red">
+              <Square size={16} /> Остановить
+            </button>
+          ) : (
+            <button onClick={check} disabled={!text.trim()} className="inline-flex items-center gap-2 bg-indigo text-surface px-5 py-2.5 rounded-xl font-medium transition-transform duration-200 hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0">
+              <SpellCheck size={18} /> Проверить
+            </button>
+          )}
+          <button onClick={() => { setText(''); setResult(null); setNote(''); }} className="text-sm text-muted hover:text-ink transition-colors">Очистить</button>
+          <button onClick={() => setText(CHECK_SAMPLE)} className="text-sm text-muted hover:text-ink transition-colors">Пример с ошибками</button>
+          <span className="text-xs text-muted ml-auto tnum">{words} слов · {text.length}/3000</span>
+        </div>
+        <p className="text-xs text-muted mt-3 flex items-center gap-1.5 flex-wrap">
+          <Sparkles size={13} className="text-indigo" />
+          {sample === undefined ? 'Подключаем проверку…' : sample
+            ? 'Проверяет Claude. При первой проверке страница попросит разрешение.'
+            : <span>Проверяет база правил <a href="https://languagetool.org" target="_blank" rel="noopener" className="text-indigo underline">LanguageTool</a>. Без интернета работает простая проверка.</span>}
+        </p>
+      </Panel>
+
+      {status === 'loading' && (
+        <Panel className="fade-in flex items-center gap-3 text-muted">
+          <Loader2 size={20} className="animate-spin text-indigo" /> {sample ? 'Claude читает ваш текст и ищет ошибки… Обычно это занимает до минуты.' : 'Сверяем текст с базой правил LanguageTool…'}
+        </Panel>
+      )}
+
+      {note && (
+        <div className="fade-in flex gap-2 items-start rounded-xl px-4 py-3 text-sm bg-amberSoft">
+          <AlertTriangle size={17} className="text-amber shrink-0 mt-0.5" /> <span>{note}</span>
+        </div>
+      )}
+
+      {status === 'done' && result && (
+        <div className="fade-in space-y-6">
+          <Panel>
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h3 className="font-display text-xl font-semibold">Результат</h3>
+              <span className={`text-sm font-medium px-3 py-1 rounded-full tnum ${result.errors.length ? 'bg-redSoft text-red' : 'bg-greenSoft text-green'}`}>
+                {result.errors.length ? `Ошибок: ${result.errors.length}` : 'Ошибок нет'}
+              </span>
+            </div>
+            {result.summary && <p className="text-muted mt-1">{result.summary}</p>}
+            <p className="text-xs text-muted mt-2">
+              Проверено: {result.engine === 'claude' ? 'Claude' : result.engine === 'lt'
+                ? <a href="https://languagetool.org" target="_blank" rel="noopener" className="text-indigo underline">LanguageTool</a>
+                : 'простая проверка базовых правил'}
+            </p>
+            <p className="mt-4 text-lg leading-loose break-words">
+              {parts.map((p, k) => p.i === undefined ? <span key={k}>{p.t}</span> : (
+                <button key={k} onClick={() => setActive(p.i === active ? null : p.i)}
+                  className={`rounded px-0.5 underline decoration-wavy decoration-red underline-offset-4 transition-colors duration-200 ${active === p.i ? 'bg-redSoft' : 'hover:bg-redSoft'}`}>
+                  {p.t}<sup className="text-xs text-red font-semibold ml-0.5 no-underline">{p.i + 1}</sup>
+                </button>
+              ))}
+            </p>
+          </Panel>
+
+          {result.errors.length > 0 && (
+            <Panel>
+              <h3 className="font-display text-xl font-semibold">Разбор ошибок</h3>
+              <ol className="mt-4 space-y-3">
+                {result.errors.map((e, i) => (
+                  <li key={i}>
+                    <button onClick={() => setActive(i === active ? null : i)}
+                      className={`w-full text-left flex gap-3 items-start rounded-xl border-2 p-3 transition-all duration-200 ${active === i ? 'border-indigo bg-indigoSoft' : 'border-line hover:border-indigo'}`}>
+                      <span className="w-7 h-7 shrink-0 rounded-full bg-redSoft text-red flex items-center justify-center text-sm font-semibold tnum">{i + 1}</span>
+                      <span className="min-w-0">
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="line-through text-red">{e.wrong}</span>
+                          <ArrowRight size={15} className="text-muted" />
+                          <span className="font-semibold text-green">{e.correct}</span>
+                          {e.type && <span className="text-xs text-muted border border-line rounded-full px-2">{e.type}</span>}
+                        </span>
+                        <span className="block text-sm mt-1">{e.explain}</span>
+                        {e.original && <span className="block text-sm text-muted mt-1" lang="en">{e.original}</span>}
+                        {e.alts && e.alts.length > 0 && <span className="block text-xs text-muted mt-1">Другие варианты: {e.alts.join(', ')}</span>}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            </Panel>
+          )}
+
+          {result.errors.length > 0 && (
+            <Panel>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="font-display text-xl font-semibold flex items-center gap-2"><Wand2 size={19} className="text-green" /> Исправленный текст</h3>
+                <button onClick={() => { setText(result.corrected); }} className="text-sm text-indigo font-medium hover:underline">Вставить в поле</button>
+              </div>
+              <p className="mt-3 text-lg leading-relaxed bg-greenSoft rounded-xl p-4 break-words">{result.corrected}</p>
+            </Panel>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------- Флаги ---------- */
+function Flag({ code, className = 'w-6 h-4', round = false, title }) {
+  const raw = React.useId ? React.useId() : String(Math.random());
+  const uid = 'f' + raw.replace(/[^a-zA-Z0-9]/g, '');
+  const wrap = `${className} inline-block shrink-0 overflow-hidden ${round ? 'rounded-full' : 'rounded-[3px]'} ring-1 ring-line align-middle`;
+  const par = round ? 'xMidYMid slice' : 'none';
+  const size = round ? { width: 20, height: 20 } : { width: 24, height: 16 };
+  if (code === 'ru') {
+    return (
+      <svg viewBox="0 0 9 6" preserveAspectRatio={par} {...size} className={wrap} role={title ? 'img' : undefined} aria-label={title} aria-hidden={title ? undefined : true}>
+        <rect width="9" height="2" fill="#ffffff" /><rect y="2" width="9" height="2" fill="#0039A6" /><rect y="4" width="9" height="2" fill="#D52B1E" />
+      </svg>
+    );
+  }
+  if (code === 'us') {
+    const stripes = [];
+    for (let i = 0; i < 13; i++) stripes.push(<rect key={i} y={(i * 10) / 13} width="19" height={10 / 13} fill={i % 2 ? '#ffffff' : '#B22234'} />);
+    const stars = [];
+    for (let r = 0; r < 4; r++) for (let c = 0; c < 5; c++) stars.push(<circle key={r + '-' + c} cx={0.85 + c * 1.5} cy={0.75 + r * 1.3} r="0.28" fill="#ffffff" />);
+    return (
+      <svg viewBox="0 0 19 10" preserveAspectRatio={par} {...size} className={wrap} role={title ? 'img' : undefined} aria-label={title} aria-hidden={title ? undefined : true}>
+        {stripes}<rect width="7.6" height={70 / 13} fill="#3C3B6E" />{stars}
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 60 30" preserveAspectRatio={par} {...size} className={wrap} role={title ? 'img' : undefined} aria-label={title} aria-hidden={title ? undefined : true}>
+      <defs>
+        <clipPath id={uid + 's'}><path d="M0,0 v30 h60 v-30 z" /></clipPath>
+        <clipPath id={uid + 't'}><path d="M30,15 h30 v15 z v15 h-30 z h-30 v-15 z v-15 h30 z" /></clipPath>
+      </defs>
+      <g clipPath={`url(#${uid}s)`}>
+        <path d="M0,0 v30 h60 v-30 z" fill="#012169" />
+        <path d="M0,0 L60,30 M60,0 L0,30" stroke="#ffffff" strokeWidth="6" />
+        <path d="M0,0 L60,30 M60,0 L0,30" clipPath={`url(#${uid}t)`} stroke="#C8102E" strokeWidth="4" />
+        <path d="M30,0 v30 M0,15 h60" stroke="#ffffff" strokeWidth="10" />
+        <path d="M30,0 v30 M0,15 h60" stroke="#C8102E" strokeWidth="6" />
+      </g>
+    </svg>
+  );
+}
+
+/* Тонкая лента в цветах всех трёх флагов: белый, синий, красный */
+function FlagRibbon() {
+  return (
+    <div aria-hidden="true" className="h-[3px] w-full flex">
+      <span className="flex-1 bg-surface2" /><span className="flex-1" style={{ background: '#2B59C3' }} /><span className="flex-1" style={{ background: '#D03A3A' }} />
+    </div>
+  );
+}
+
+/* ---------- Произношение: словарь, транскрипция, проверка написания ---------- */
+// слово | IPA (US) | IPA (UK) | перевод
+const DICT_RAW = `thought|θɔt|θɔːt|мысль; подумал (think → thought)
+comfortable|ˈkʌmftərbəl|ˈkʌmftəbl|удобный
+vegetable|ˈvedʒtəbəl|ˈvedʒtəbl|овощ
+wednesday|ˈwenzdeɪ|ˈwenzdeɪ|среда
+thursday|ˈθɝːzdeɪ|ˈθɜːzdeɪ|четверг
+february|ˈfebjueri|ˈfebruəri|февраль
+through|θruː|θruː|через, сквозь
+world|wɝːld|wɜːld|мир
+word|wɝːd|wɜːd|слово
+work|wɝːk|wɜːk|работа, работать
+walk|wɑːk|wɔːk|гулять, ходить пешком
+bird|bɝːd|bɜːd|птица
+girl|ɡɝːl|ɡɜːl|девочка, девушка
+island|ˈaɪlənd|ˈaɪlənd|остров
+answer|ˈænsɚ|ˈɑːnsə|ответ, отвечать
+beautiful|ˈbjuːtɪfəl|ˈbjuːtɪfl|красивый
+hello|həˈloʊ|həˈləʊ|привет
+water|ˈwɑːtɚ|ˈwɔːtə|вода
+apple|ˈæpəl|ˈæpl|яблоко
+friend|frend|frend|друг
+school|skuːl|skuːl|школа
+people|ˈpiːpəl|ˈpiːpl|люди
+because|bɪˈkɑːz|bɪˈkɒz|потому что
+library|ˈlaɪbreri|ˈlaɪbrəri|библиотека
+woman|ˈwʊmən|ˈwʊmən|женщина
+women|ˈwɪmɪn|ˈwɪmɪn|женщины
+busy|ˈbɪzi|ˈbɪzi|занятой
+business|ˈbɪznəs|ˈbɪznəs|бизнес, дело
+colonel|ˈkɝːnəl|ˈkɜːnl|полковник
+knife|naɪf|naɪf|нож
+know|noʊ|nəʊ|знать
+knee|niː|niː|колено
+listen|ˈlɪsən|ˈlɪsn|слушать
+often|ˈɔːfən|ˈɒfn|часто
+receipt|rɪˈsiːt|rɪˈsiːt|чек, квитанция
+recipe|ˈresəpi|ˈresəpi|рецепт
+queue|kjuː|kjuː|очередь
+enough|ɪˈnʌf|ɪˈnʌf|достаточно
+laugh|læf|lɑːf|смеяться
+daughter|ˈdɑːtɚ|ˈdɔːtə|дочь
+tomato|təˈmeɪtoʊ|təˈmɑːtəʊ|помидор
+schedule|ˈskedʒuːl|ˈʃedjuːl|расписание
+car|kɑːr|kɑː|машина
+cat|kæt|kæt|кошка
+dog|dɔːɡ|dɒɡ|собака
+house|haʊs|haʊs|дом
+mother|ˈmʌðɚ|ˈmʌðə|мама
+father|ˈfɑːðɚ|ˈfɑːðə|папа
+brother|ˈbrʌðɚ|ˈbrʌðə|брат
+sister|ˈsɪstɚ|ˈsɪstə|сестра
+child|tʃaɪld|tʃaɪld|ребёнок
+children|ˈtʃɪldrən|ˈtʃɪldrən|дети
+teacher|ˈtiːtʃɚ|ˈtiːtʃə|учитель
+student|ˈstuːdənt|ˈstjuːdnt|студент
+english|ˈɪŋɡlɪʃ|ˈɪŋɡlɪʃ|английский
+russian|ˈrʌʃən|ˈrʌʃn|русский
+london|ˈlʌndən|ˈlʌndən|Лондон
+moscow|ˈmɑːskaʊ|ˈmɒskəʊ|Москва
+three|θriː|θriː|три
+thank|θæŋk|θæŋk|благодарить
+think|θɪŋk|θɪŋk|думать
+this|ðɪs|ðɪs|этот, это
+the|ðə|ðə|определённый артикль
+very|ˈveri|ˈveri|очень
+year|jɪr|jɪə|год
+hour|aʊr|aʊə|час
+honest|ˈɑːnɪst|ˈɒnɪst|честный
+psychology|saɪˈkɑːlədʒi|saɪˈkɒlədʒi|психология
+interesting|ˈɪntrəstɪŋ|ˈɪntrəstɪŋ|интересный
+chocolate|ˈtʃɑːklət|ˈtʃɒklət|шоколад
+breakfast|ˈbrekfəst|ˈbrekfəst|завтрак
+clothes|kloʊðz|kləʊðz|одежда
+good|ɡʊd|ɡʊd|хороший
+food|fuːd|fuːd|еда
+book|bʊk|bʊk|книга
+blood|blʌd|blʌd|кровь
+money|ˈmʌni|ˈmʌni|деньги
+city|ˈsɪti|ˈsɪti|город
+family|ˈfæməli|ˈfæməli|семья
+weather|ˈweðɚ|ˈweðə|погода
+guitar|ɡɪˈtɑːr|ɡɪˈtɑː|гитара
+music|ˈmjuːzɪk|ˈmjuːzɪk|музыка
+juice|dʒuːs|dʒuːs|сок
+yesterday|ˈjestɚdeɪ|ˈjestədeɪ|вчера
+tomorrow|təˈmɑːroʊ|təˈmɒrəʊ|завтра
+today|təˈdeɪ|təˈdeɪ|сегодня
+please|pliːz|pliːz|пожалуйста
+sorry|ˈsɑːri|ˈsɒri|извините
+again|əˈɡen|əˈɡen|снова
+said|sed|sed|сказал (say → said)
+says|sez|sez|говорит
+eye|aɪ|aɪ|глаз
+aunt|ænt|ɑːnt|тётя
+bread|bred|bred|хлеб
+heart|hɑːrt|hɑːt|сердце
+height|haɪt|haɪt|высота, рост
+quiet|ˈkwaɪət|ˈkwaɪət|тихий
+quite|kwaɪt|kwaɪt|довольно, вполне
+choir|ˈkwaɪɚ|ˈkwaɪə|хор
+sword|sɔːrd|sɔːd|меч
+debt|det|det|долг
+doubt|daʊt|daʊt|сомнение
+calm|kɑːm|kɑːm|спокойный
+half|hæf|hɑːf|половина
+can't|kænt|kɑːnt|не могу
+cucumber|ˈkjuːkʌmbɚ|ˈkjuːkʌmbə|огурец
+pronunciation|prəˌnʌnsiˈeɪʃən|prəˌnʌnsiˈeɪʃn|произношение
+necessary|ˈnesəseri|ˈnesəsəri|необходимый
+beginning|bɪˈɡɪnɪŋ|bɪˈɡɪnɪŋ|начало
+believe|bɪˈliːv|bɪˈliːv|верить
+receive|rɪˈsiːv|rɪˈsiːv|получать
+tired|taɪɚd|ˈtaɪəd|уставший
+hungry|ˈhʌŋɡri|ˈhʌŋɡri|голодный
+happy|ˈhæpi|ˈhæpi|счастливый
+ready|ˈredi|ˈredi|готовый
+doctor|ˈdɑːktɚ|ˈdɒktə|врач
+cinema|ˈsɪnəmə|ˈsɪnəmə|кинотеатр
+park|pɑːrk|pɑːk|парк
+morning|ˈmɔːrnɪŋ|ˈmɔːnɪŋ|утро
+evening|ˈiːvnɪŋ|ˈiːvnɪŋ|вечер
+tea|tiː|tiː|чай
+coffee|ˈkɑːfi|ˈkɒfi|кофе
+cold|koʊld|kəʊld|холодный
+late|leɪt|leɪt|поздно, опоздавший
+funny|ˈfʌni|ˈfʌni|смешной
+toy|tɔɪ|tɔɪ|игрушка
+bag|bæɡ|bæɡ|сумка
+room|ruːm|ruːm|комната
+team|tiːm|tiːm|команда
+parents|ˈperənts|ˈpeərənts|родители
+mouse|maʊs|maʊs|мышь
+mice|maɪs|maɪs|мыши
+tooth|tuːθ|tuːθ|зуб
+teeth|tiːθ|tiːθ|зубы
+foot|fʊt|fʊt|ступня
+feet|fiːt|fiːt|ступни
+man|mæn|mæn|мужчина
+men|men|men|мужчины
+person|ˈpɝːsən|ˈpɜːsn|человек
+learn|lɝːn|lɜːn|учить, узнавать
+speak|spiːk|spiːk|говорить
+read|riːd|riːd|читать
+write|raɪt|raɪt|писать
+love|lʌv|lʌv|любовь, любить
+live|lɪv|lɪv|жить
+like|laɪk|laɪk|нравиться
+want|wɑːnt|wɒnt|хотеть
+go|ɡoʊ|ɡəʊ|идти
+went|went|went|пошёл (go → went)
+come|kʌm|kʌm|приходить
+see|siː|siː|видеть
+eat|iːt|iːt|есть
+drink|drɪŋk|drɪŋk|пить
+play|pleɪ|pleɪ|играть
+watch|wɑːtʃ|wɒtʃ|смотреть
+help|help|help|помогать
+call|kɔːl|kɔːl|звонить
+visit|ˈvɪzɪt|ˈvɪzɪt|посещать`;
+
+const DICT = {};
+DICT_RAW.split('\n').forEach((line) => {
+  const [w, us, uk, ru] = line.split('|');
+  if (w) DICT[w.trim().toLowerCase()] = { us, uk, ru };
+});
+
+// Частые слова, которые точно написаны правильно (для подсказок и проверки без интернета)
+const COMMON = `a about above after again against all almost also always am an and another any are around as ask at away back bad be because been before being best better between big black blue book both box boy bring brown but buy by can car child city class clean close come could country cup cut day dear did different do does done door down draw dream dress drive during each early easy eat eight end every eye face fall far fast few find fine first fish five floor fly for found four free from full fun game garden get give glass go going gone good great green grow had hand hard has hat have he head hear help her here high him his hold home hot how i if in into is it its job just keep kind kitchen know land large last learn left leg less let letter life light like line little live long look lot love low made make many may me mean meet mile milk mind more most move much must my name near need never new next nice night nine no not nothing now number of off old on once one only open or orange other our out over own page paper part past pen pencil picture place plan plant play point poor pretty put question quick rain ran red right river road run sad same saw say sea second see seven she shoe shop short should show shut side sing sit six sleep slow small snow so some something song soon sound spell spring stand star start stay still stop story street strong study such summer sun swim table take talk tall tell ten than that their them then there these they thing this those three time to together too took town train tree true try turn two under until up us use usually very wait want warm was wash way we wear week well were what when where which while white who whole why will win window winter wish with without wonderful would write wrong yellow yes you young your
+accommodate address definitely until really government which their separate occurred colleague sincerely tomorrow necessary beginning believe receive friend because beautiful wednesday comfortable vegetable through
+lesson grammar english language sentence tense verb noun teacher student dictionary pronunciation practice exercise mistake correct answer easy difficult understand remember forget hospital airport station hotel restaurant ticket weather holiday birthday`;
+const KNOWN = new Set([...Object.keys(DICT), ...COMMON.split(/\s+/).map((w) => w.toLowerCase())]);
+const KNOWN_LIST = [...KNOWN];
+
+const MISSPELL = {
+  beatiful: 'beautiful', beutiful: 'beautiful', beautifull: 'beautiful', freind: 'friend', frend: 'friend', becouse: 'because', becuase: 'because', becaus: 'because',
+  wensday: 'Wednesday', wendsday: 'Wednesday', wednsday: 'Wednesday', tommorow: 'tomorrow', tomorow: 'tomorrow', tommorrow: 'tomorrow', recieve: 'receive',
+  definately: 'definitely', definatly: 'definitely', untill: 'until', realy: 'really', beleive: 'believe', goverment: 'government', wich: 'which', teh: 'the',
+  thier: 'their', adress: 'address', acommodate: 'accommodate', accomodate: 'accommodate', begining: 'beginning', comfortible: 'comfortable', confortable: 'comfortable',
+  vegtable: 'vegetable', vegetible: 'vegetable', thru: 'through', colleage: 'colleague', neccessary: 'necessary', necesary: 'necessary', occured: 'occurred',
+  seperate: 'separate', sincerly: 'sincerely', febuary: 'February', libary: 'library', pronounciation: 'pronunciation', grammer: 'grammar', englsh: 'English',
+  wether: 'weather', whether_: 'whether', thank: 'thank', iland: 'island', anser: 'answer', ansver: 'answer', watter: 'water', aple: 'apple', scool: 'school',
+  shcool: 'school', peple: 'people', peopel: 'people', famaly: 'family', famili: 'family', moust: 'must', brekfast: 'breakfast', chocolat: 'chocolate', choclate: 'chocolate',
+  intresting: 'interesting', interesing: 'interesting', yestarday: 'yesterday', yesturday: 'yesterday', resipe: 'recipe', reciept: 'receipt', doter: 'daughter',
+  dauther: 'daughter', toogether: 'together', togather: 'together', wotch: 'watch', whatch: 'watch', laff: 'laugh', enouf: 'enough', enogh: 'enough', thougt: 'thought',
+  throught: 'through', wold: 'world', wolrd: 'world', hellow: 'hello', helo: 'hello', pleese: 'please', plese: 'please', sory: 'sorry', againe: 'again',
+};
+delete MISSPELL.thank; delete MISSPELL.whether_;
+
+function editDistance(a, b) {
+  const m = a.length, n = b.length;
+  if (Math.abs(m - n) > 2) return 9;
+  const d = Array.from({ length: m + 1 }, (_, i) => [i, ...Array(n).fill(0)]);
+  for (let j = 1; j <= n; j++) d[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+    }
+  }
+  return d[m][n];
+}
+
+function stems(w) {
+  const out = [w];
+  const rules = [[/ies$/, 'y'], [/ied$/, 'y'], [/'s$/, ''], [/s'$/, ''], [/es$/, ''], [/s$/, ''], [/ed$/, ''], [/ed$/, 'e'], [/ing$/, ''], [/ing$/, 'e'], [/er$/, ''], [/est$/, ''], [/ly$/, '']];
+  rules.forEach(([re, rep]) => { if (re.test(w)) { const s = w.replace(re, rep); out.push(s); if (/(.)\1$/.test(s)) out.push(s.slice(0, -1)); } });
+  return out;
+}
+
+function keepCase(orig, sug) {
+  if (/^[A-Z]/.test(orig) && /^[a-z]/.test(sug)) return sug.charAt(0).toUpperCase() + sug.slice(1);
+  return sug;
+}
+
+function offlineSpell(word) {
+  const lw = word.toLowerCase().replace(/’/g, "'");
+  if (MISSPELL[lw]) return { ok: false, sure: true, suggestions: [keepCase(word, MISSPELL[lw])] };
+  if (stems(lw).some((s) => KNOWN.has(s))) return { ok: true };
+  if (lw.length <= 4) return { ok: true, unknown: true };
+  const limit = lw.length <= 5 ? 1 : 2;
+  const cands = [];
+  for (const k of KNOWN_LIST) {
+    if (Math.abs(k.length - lw.length) > limit) continue;
+    const dist = editDistance(lw, k);
+    if (dist <= limit) cands.push([dist, Math.abs(k.length - lw.length), k]);
+  }
+  cands.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  if (cands.length) return { ok: false, sure: false, suggestions: cands.slice(0, 3).map((c) => keepCase(word, c[2])) };
+  return { ok: true, unknown: true };
+}
+
+function tokenize(str) {
+  const out = [];
+  const re = /[A-Za-z]+(?:['’][A-Za-z]+)*/g;
+  let m;
+  while ((m = re.exec(str))) out.push({ text: m[0], start: m.index, end: m.index + m[0].length });
+  return out;
+}
+
+function offlineAnalyze(input) {
+  const tokens = tokenize(input).map((t) => ({ ...t, ...offlineSpell(t.text), source: 'builtin' }));
+  const corrected = applyFixes(input, tokens);
+  const words = tokenize(corrected).map((t) => t.text.toLowerCase());
+  const entries = words.map((w) => DICT[w] || null);
+  const allKnown = words.length > 0 && entries.every(Boolean);
+  return {
+    input, tokens, corrected,
+    ipaUS: allKnown ? '/' + entries.map((e) => e.us).join(' ') + '/' : '',
+    ipaUK: allKnown ? '/' + entries.map((e) => e.uk).join(' ') + '/' : '',
+    ru: words.length === 1 && entries[0] ? entries[0].ru : '',
+    source: 'builtin',
+  };
+}
+
+function applyFixes(input, tokens) {
+  let out = input;
+  [...tokens].reverse().forEach((t) => { if (!t.ok && t.sure && t.suggestions && t.suggestions[0]) out = out.slice(0, t.start) + t.suggestions[0] + out.slice(t.end); });
+  return out;
+}
+
+/* Claude (внутри артефакта): одна быстрая проверка даёт и орфографию, и транскрипцию */
+function buildPronouncePrompt(input) {
+  return [
+    'A Russian-speaking beginner typed this English word or short phrase to hear its pronunciation. It may contain spelling mistakes.',
+    'Reply with ONLY a JSON object:',
+    '{"tokens":[{"text":"each word exactly as typed","ok":true,"suggestions":[]}],"corrected":"the phrase with spelling fixed","ipa_us":"/General American IPA of the corrected phrase/","ipa_uk":"/British RP IPA of the corrected phrase/","ru":"short Russian translation","pos":"part of speech in Russian, or empty","tip":"one short tip in Russian about sounds in this word that Russian speakers often get wrong, or empty"}',
+    'Set ok:false only for misspelled or non-existent words and give up to 3 suggestions, best first. Names and correct words are ok:true with empty suggestions.',
+    '',
+    'Input: ' + input,
+  ].join('\n');
+}
+
+/* Вне Claude: словарь dictionaryapi.dev (транскрипция и записи носителей) + LanguageTool (орфография) */
+async function fetchDictionary(word, signal) {
+  const res = await fetch('https://api.dictionaryapi.dev/api/v2/entries/en/' + encodeURIComponent(word.toLowerCase()), { signal });
+  if (res.status === 404) return { found: false };
+  if (!res.ok) throw new Error('dict ' + res.status);
+  const data = await res.json();
+  const entry = Array.isArray(data) ? data[0] : null;
+  if (!entry) return { found: false };
+  const ph = (Array.isArray(data) ? data : []).flatMap((e) => e.phonetics || []);
+  const byAudio = (re) => ph.find((p) => p.text && p.audio && re.test(p.audio));
+  const anyText = (entry.phonetic) || (ph.find((p) => p.text) || {}).text || '';
+  const audioUS = (ph.find((p) => p.audio && /-us\.mp3$/.test(p.audio)) || {}).audio || '';
+  const audioUK = (ph.find((p) => p.audio && /-uk\.mp3$/.test(p.audio)) || {}).audio || '';
+  const meaning = entry.meanings && entry.meanings[0];
+  return {
+    found: true,
+    us: ((byAudio(/-us\.mp3$/) || {}).text) || anyText,
+    uk: ((byAudio(/-uk\.mp3$/) || {}).text) || anyText,
+    audioUS, audioUK,
+    pos: meaning ? meaning.partOfSpeech : '',
+    def: meaning && meaning.definitions && meaning.definitions[0] ? meaning.definitions[0].definition : '',
+  };
+}
+
+const stripSlashes = (s) => String(s || '').replace(/^[\/\[]|[\/\]]$/g, '').trim();
+const POS_RU = { noun: 'существительное', verb: 'глагол', adjective: 'прилагательное', adverb: 'наречие', pronoun: 'местоимение', preposition: 'предлог', conjunction: 'союз', interjection: 'междометие', exclamation: 'восклицание' };
+
+async function webAnalyze(input, signal) {
+  const base = offlineAnalyze(input);
+  let tokens = base.tokens;
+  let spellSource = 'builtin';
+  try {
+    const body = new URLSearchParams({ text: input, language: 'en-US' });
+    const res = await fetch(LT_URL, { method: 'POST', body, signal, headers: { Accept: 'application/json' } });
+    if (res.ok) {
+      const data = await res.json();
+      const typos = (data.matches || []).filter((m) => (m.rule && (m.rule.issueType === 'misspelling' || (m.rule.category && m.rule.category.id === 'TYPOS'))));
+      tokens = tokenize(input).map((t) => {
+        const m = typos.find((x) => x.offset < t.end && x.offset + x.length > t.start);
+        if (m) return { ...t, ok: false, sure: true, suggestions: (m.replacements || []).slice(0, 3).map((r) => r.value), source: 'lt' };
+        return { ...t, ok: true, source: 'lt' };
+      });
+      spellSource = 'lt';
+    }
+  } catch (e) { if (e && e.name === 'AbortError') throw e; }
+
+  const corrected = applyFixes(input, tokens);
+  const words = tokenize(corrected).map((t) => t.text).slice(0, 6);
+  const look = await Promise.all(words.map((w) => fetchDictionary(w, signal).catch((e) => { if (e && e.name === 'AbortError') throw e; return null; })));
+  const per = words.map((w, i) => {
+    const d = look[i];
+    const b = DICT[w.toLowerCase()];
+    if (d && d.found && (d.us || d.uk)) return { us: stripSlashes(d.us), uk: stripSlashes(d.uk) };
+    if (b) return { us: b.us, uk: b.uk };
+    return null;
+  });
+  // слова, которых нет ни в словаре, ни в LanguageTool — пометим как подозрительные
+  if (spellSource === 'builtin') {
+    tokens = tokens.map((t) => {
+      const i = words.findIndex((w) => w.toLowerCase() === t.text.toLowerCase());
+      if (t.ok && t.unknown && i >= 0 && look[i] && look[i].found === false) return { ...t, ok: false, sure: false, suggestions: [] };
+      return t;
+    });
+  }
+  const full = words.length > 0 && per.every(Boolean);
+  const single = words.length === 1 ? look[0] : null;
+  const entry = words.length === 1 ? DICT[words[0].toLowerCase()] : null;
+  return {
+    input, tokens, corrected,
+    ipaUS: full ? '/' + per.map((p) => p.us).join(' ') + '/' : '',
+    ipaUK: full ? '/' + per.map((p) => p.uk).join(' ') + '/' : '',
+    ru: entry ? entry.ru : '',
+    pos: single && single.found ? (POS_RU[single.pos] || single.pos) : '',
+    def: single && single.found ? single.def : '',
+    audioUS: single && single.found ? single.audioUS : '',
+    audioUK: single && single.found ? single.audioUK : '',
+    source: (look.some((d) => d && d.found) ? 'web' : 'builtin'),
+    spellSource,
+  };
+}
+
+function claudeToAnalysis(input, data) {
+  const typed = tokenize(input);
+  const got = Array.isArray(data && data.tokens) ? data.tokens : [];
+  let from = 0;
+  const tokens = typed.map((t) => {
+    let idx = -1;
+    for (let k = from; k < got.length; k++) if (String(got[k].text || '').toLowerCase() === t.text.toLowerCase()) { idx = k; break; }
+    if (idx < 0) return { ...t, ok: true, source: 'claude' };
+    from = idx + 1;
+    const g = got[idx];
+    const sugg = Array.isArray(g.suggestions) ? g.suggestions.map(String).filter(Boolean).slice(0, 3) : [];
+    return { ...t, ok: g.ok !== false, sure: true, suggestions: sugg, source: 'claude' };
+  });
+  const wrap = (s) => { const x = stripSlashes(s); return x ? '/' + x + '/' : ''; };
+  return {
+    input, tokens,
+    corrected: String((data && data.corrected) || applyFixes(input, tokens)),
+    ipaUS: wrap(data && data.ipa_us), ipaUK: wrap(data && data.ipa_uk),
+    ru: String((data && data.ru) || ''), pos: String((data && data.pos) || ''), tip: String((data && data.tip) || ''),
+    source: 'claude', spellSource: 'claude',
+  };
+}
+
+/* Слово с подсказкой при наведении, как в Word */
+function SpellToken({ t, onPick }) {
+  if (t.ok) return <span>{t.text}</span>;
+  const color = t.sure ? 'decoration-red' : 'decoration-amber';
+  return (
+    <span className="relative inline-block group">
+      <button type="button" className={`underline decoration-wavy ${color} underline-offset-[5px] decoration-2 rounded px-0.5 transition-colors duration-200 hover:bg-redSoft focus:bg-redSoft outline-none`}
+        aria-label={`${t.text}: возможно, ошибка. ${t.suggestions && t.suggestions.length ? 'Варианты: ' + t.suggestions.join(', ') : ''}`}>
+        {t.text}
+      </button>
+      <span role="tooltip"
+        className="pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 group-focus-within:opacity-100 group-focus-within:translate-y-0 transition-all duration-200 absolute left-0 top-full z-20 pt-2 w-max max-w-[260px]">
+        <span className="block bg-surface border border-line rounded-xl shadow-lg p-3 text-sm text-left whitespace-normal">
+          <span className="block text-xs text-muted mb-1.5">{t.sure ? 'Ошибка в написании. Правильно:' : (t.suggestions && t.suggestions.length ? 'Слова нет в словаре. Возможно, вы имели в виду:' : 'Такого слова нет в словаре. Проверьте написание.')}</span>
+          {t.suggestions && t.suggestions.length > 0 && (
+            <span className="flex flex-wrap gap-1.5">
+              {t.suggestions.map((s) => (
+                <button key={s} type="button" onClick={() => onPick(t, s)}
+                  className="px-2.5 py-1 rounded-lg bg-greenSoft text-green font-semibold transition-transform duration-150 hover:-translate-y-0.5">{s}</button>
+              ))}
+            </span>
+          )}
+        </span>
+      </span>
+    </span>
+  );
+}
+
+const SAY_EXAMPLES = ['thought', 'comfortable', 'vegetable', 'Wednesday', 'through', 'world', 'island', 'answer'];
+const SPEEDS = [{ v: 0.6, l: 'Медленно' }, { v: 0.85, l: 'Спокойно' }, { v: 1, l: 'Обычно' }];
+const SOURCE_LABEL = { claude: 'Claude', web: 'словарь Free Dictionary API', builtin: 'встроенный словарь приложения' };
+
+function PronounceView() {
+  const supported = typeof window !== 'undefined' && 'speechSynthesis' in window && typeof window.SpeechSynthesisUtterance === 'function';
+  const [word, setWord] = useState('beatiful');
+  const [accent, setAccent] = useState('en-US');
+  const [rate, setRate] = useState(0.85);
+  const [voices, setVoices] = useState([]);
+  const [speaking, setSpeaking] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [err, setErr] = useState('');
+  const [sample, setSample] = useState(undefined);
+  const [analysis, setAnalysis] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [lookupNote, setLookupNote] = useState('');
+  const ctlRef = React.useRef(null);
+  const audioRef = React.useRef(null);
+
+  useEffect(() => {
+    let alive = true;
+    if (!window.claude || typeof window.claude.use !== 'function') setSample(null);
+    else window.claude.use('sample').then((s) => alive && setSample(s || null)).catch(() => alive && setSample(null));
+    return () => { alive = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!supported) return;
+    const load = () => setVoices(window.speechSynthesis.getVoices().filter((v) => /^en[-_]/i.test(v.lang)));
+    load();
+    window.speechSynthesis.addEventListener('voiceschanged', load);
+    return () => { window.speechSynthesis.removeEventListener('voiceschanged', load); window.speechSynthesis.cancel(); };
+  }, []);
+
+  // Проверка написания по встроенному словарю — сразу, пока печатаете
+  const live = useMemo(() => offlineAnalyze(word), [word]);
+  const view = analysis && analysis.input === word ? analysis : live;
+  const wrongCount = view.tokens.filter((t) => !t.ok).length;
+
+  const pickVoice = (lang) => {
+    const norm = (l) => l.replace('_', '-').toLowerCase();
+    const exact = voices.filter((v) => norm(v.lang) === lang.toLowerCase());
+    const pref = exact.find((v) => /natural|premium|enhanced|google|samantha|daniel/i.test(v.name));
+    return pref || exact[0] || voices[0] || null;
+  };
+
+  const speak = (w, opts = {}) => {
+    const clean = String(w || '').trim().slice(0, 200);
+    if (!clean || !supported) return;
+    const lang = opts.lang || accent;
+    const id = opts.id || 'main';
+    setErr('');
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(clean);
+    u.lang = lang;
+    const v = pickVoice(lang);
+    if (v) u.voice = v;
+    u.rate = opts.rate || rate;
+    u.onstart = () => setSpeaking(id);
+    u.onend = () => setSpeaking(null);
+    u.onerror = (e) => { setSpeaking(null); if (e.error !== 'interrupted' && e.error !== 'canceled') setErr('Браузер не смог воспроизвести звук. Проверьте громкость или попробуйте другой браузер.'); };
+    window.speechSynthesis.speak(u);
+  };
+
+  const playRecording = (url, id) => {
+    try {
+      if (audioRef.current) audioRef.current.pause();
+      const a = new Audio(url);
+      audioRef.current = a;
+      a.onplay = () => setSpeaking(id);
+      a.onended = () => setSpeaking(null);
+      a.onerror = () => { setSpeaking(null); setErr('Запись не загрузилась. Послушайте синтезированный голос.'); };
+      a.play().catch(() => { setSpeaking(null); setErr('Запись не загрузилась. Послушайте синтезированный голос.'); });
+    } catch (e) { setErr('Запись не загрузилась.'); }
+  };
+
+  const lookup = async (input) => {
+    const src = input.trim();
+    if (!src) return;
+    if (ctlRef.current) ctlRef.current.abort();
+    const c = new AbortController();
+    ctlRef.current = c;
+    setLoading(true); setLookupNote('');
+    try {
+      let res = null;
+      if (sample) {
+        try {
+          const data = await sample.json(buildPronouncePrompt(src), { signal: c.signal, modelTier: 'quick' });
+          res = claudeToAnalysis(src, data);
+        } catch (e) {
+          if (e && e.code === 'cancelled') return;
+          if (HIDE_CODES.includes(e && e.code)) setSample(null);
+          else setLookupNote(SAMPLE_ERRORS[e && e.code] || 'Claude сейчас недоступен — показываем данные встроенного словаря.');
+        }
+      }
+      if (!res) {
+        try { res = await webAnalyze(src, c.signal); }
+        catch (e) { if (e && e.name === 'AbortError') return; res = offlineAnalyze(src); }
+      }
+      if (!c.signal.aborted) setAnalysis({ ...res, input });
+    } finally {
+      if (ctlRef.current === c) { setLoading(false); ctlRef.current = null; }
+    }
+  };
+
+  const submit = (w) => {
+    const value = w !== undefined ? w : word;
+    if (!value.trim()) return;
+    if (w !== undefined) setWord(w);
+    speak(value, { id: w !== undefined ? 'ex:' + w : 'main' });
+    lookup(value);
+    setHistory((h) => [value.trim(), ...h.filter((x) => x.toLowerCase() !== value.trim().toLowerCase())].slice(0, 8));
+  };
+
+  const pick = (t, s) => {
+    const next = word.slice(0, t.start) + s + word.slice(t.end);
+    setWord(next);
+    submit(next);
+  };
+
+  const onSubmit = (e) => { e.preventDefault(); submit(); };
+  const hasAccent = (lang) => voices.some((v) => v.lang.replace('_', '-').toLowerCase() === lang.toLowerCase());
+  const isFresh = analysis && analysis.input === word;
+  const corrected = view.corrected && view.corrected !== word ? view.corrected : '';
+
+  return (
+    <div className="fade-in space-y-6">
+      <SectionTitle eyebrow="Тренажёр" title="Произношение">Введите слово или короткую фразу: приложение проверит написание, покажет транскрипцию и озвучит американский или британский вариант.</SectionTitle>
+
+      {!supported && (
+        <div className="flex gap-2 items-start rounded-xl px-4 py-3 text-sm bg-amberSoft">
+          <AlertTriangle size={17} className="text-amber shrink-0 mt-0.5" /> Этот браузер не умеет озвучивать текст. Транскрипция и проверка написания работают, а для звука откройте страницу в Chrome, Edge или Safari.
+        </div>
+      )}
+
+      <Panel>
+        <form onSubmit={onSubmit} className="flex flex-col sm:flex-row gap-3">
+          <label htmlFor="say-word" className="sr-only">Слово для произношения</label>
+          <input id="say-word" value={word} onChange={(e) => setWord(e.target.value)} maxLength={200} autoComplete="off" spellCheck="false" lang="en"
+            placeholder="Например: comfortable"
+            className={`flex-1 min-w-0 rounded-xl border-2 bg-surface2 px-4 py-3 text-xl outline-none transition-colors duration-200 focus:border-indigo ${wrongCount ? 'border-red' : 'border-line'}`} />
+          <button type="submit" disabled={!word.trim()}
+            className={`inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-medium text-surface transition-all duration-200 disabled:opacity-50 ${speaking === 'main' ? 'bg-green scale-105' : 'bg-indigo hover:-translate-y-0.5'}`}>
+            <Volume2 size={20} className={speaking === 'main' ? 'animate-pulse' : ''} /> {speaking === 'main' ? 'Звучит…' : 'Послушать'}
+          </button>
+        </form>
+
+        {word.trim() && (
+          <div className="mt-4 rounded-xl bg-surface2 border border-line px-4 py-3">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 justify-between">
+              <p className="text-xs uppercase tracking-wider text-muted">Проверка написания</p>
+              <p className={`text-xs font-medium ${wrongCount ? 'text-red' : 'text-green'}`}>
+                {wrongCount ? `Возможные ошибки: ${wrongCount} — наведите на подчёркнутое слово` : 'Ошибок не найдено'}
+              </p>
+            </div>
+            <p className="mt-2 text-xl leading-relaxed break-words" lang="en">
+              {(() => {
+                const out = []; let pos = 0;
+                view.tokens.forEach((t, k) => {
+                  if (t.start > pos) out.push(<span key={'g' + k}>{word.slice(pos, t.start)}</span>);
+                  out.push(<SpellToken key={k + t.text} t={t} onPick={pick} />);
+                  pos = t.end;
+                });
+                if (pos < word.length) out.push(<span key="tail">{word.slice(pos)}</span>);
+                return out;
+              })()}
+            </p>
+            {corrected && (
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+                <span className="text-muted">Рекомендуем написать:</span>
+                <button type="button" onClick={() => { setWord(corrected); submit(corrected); }} className="font-semibold text-green hover:underline">{corrected}</button>
+              </div>
+            )}
+            <p className="text-xs text-muted mt-2">
+              {loading ? 'Уточняем…' : isFresh
+                ? `Проверено: ${analysis.spellSource === 'claude' ? 'Claude' : analysis.spellSource === 'lt' ? 'LanguageTool' : 'встроенный словарь'}`
+                : 'Пока вы печатаете, проверяет встроенный словарь. Нажмите «Послушать» для полной проверки.'}
+            </p>
+          </div>
+        )}
+
+        <div className="grid gap-5 sm:grid-cols-2 mt-5">
+          <div>
+            <p className="text-sm text-muted mb-2">Акцент</p>
+            <div className="inline-flex bg-surface2 rounded-xl p-1 border border-line">
+              {[['en-US', 'Американский', 'us'], ['en-GB', 'Британский', 'gb']].map(([k, l, f]) => (
+                <button key={k} type="button" onClick={() => setAccent(k)} className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all duration-200 ${accent === k ? 'bg-surface shadow-sm font-medium text-indigo' : 'text-muted'}`}>
+                  <Flag code={f} className="w-5 h-3.5" /> {l}{voices.length > 0 && !hasAccent(k) && <span className="text-xs">*</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-sm text-muted mb-2">Скорость</p>
+            <div className="inline-flex bg-surface2 rounded-xl p-1 border border-line">
+              {SPEEDS.map((s) => (
+                <button key={s.v} type="button" onClick={() => setRate(s.v)} className={`px-3 py-1.5 rounded-lg text-sm transition-all duration-200 ${rate === s.v ? 'bg-surface shadow-sm font-medium text-indigo' : 'text-muted'}`}>{s.l}</button>
+              ))}
+            </div>
+          </div>
+        </div>
+        {voices.length > 0 && (!hasAccent('en-US') || !hasAccent('en-GB')) && (
+          <p className="text-xs text-muted mt-3">* В вашей системе нет голоса с этим акцентом, будет использован другой английский голос.</p>
+        )}
+        {err && <p className="text-sm text-red mt-3">{err}</p>}
+      </Panel>
+
+      {word.trim() && (
+        <Panel className="fade-in">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h3 className="font-display text-xl font-semibold flex items-center gap-2"><Languages size={19} className="text-indigo" /> Транскрипция</h3>
+            {loading && <span className="text-xs text-muted inline-flex items-center gap-1.5"><Loader2 size={14} className="animate-spin" /> Ищем в словаре…</span>}
+          </div>
+          <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <span className="font-display text-3xl font-semibold break-words" lang="en">{corrected || word.trim()}</span>
+            {view.pos && <span className="text-sm text-muted">{view.pos}</span>}
+          </div>
+          {view.ru && <p className="mt-1 flex items-center gap-2"><Flag code="ru" className="w-5 h-3.5" title="Перевод на русский" /> {view.ru}</p>}
+          {view.def && <p className="text-sm text-muted mt-1" lang="en">{view.def}</p>}
+
+          <div className="grid gap-3 sm:grid-cols-2 mt-4">
+            {[['us', 'en-US', 'Американское', view.ipaUS, view.audioUS], ['gb', 'en-GB', 'Британское', view.ipaUK, view.audioUK]].map(([f, lang, l, ipa, rec]) => (
+              <div key={f} className="rounded-xl border-2 border-line p-4 flex flex-col gap-3">
+                <div className="flex items-center gap-2 text-sm text-muted"><Flag code={f} className="w-6 h-4" /> {l} произношение</div>
+                <p className="text-2xl tracking-wide" style={{ fontFamily: '"Lexend", "Segoe UI", "Arial Unicode MS", "Noto Sans", sans-serif' }}>
+                  {ipa || <span className="text-base text-muted">{loading ? '…' : 'нет в словаре'}</span>}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => speak(corrected || word, { lang, id: 'ipa:' + f })} disabled={!supported}
+                    className={`inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border-2 transition-all duration-200 disabled:opacity-50 ${speaking === 'ipa:' + f ? 'border-green bg-greenSoft text-green' : 'border-line hover:border-indigo'}`}>
+                    <Volume2 size={15} /> Голос
+                  </button>
+                  {rec && (
+                    <button type="button" onClick={() => playRecording(rec, 'rec:' + f)}
+                      className={`inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border-2 transition-all duration-200 ${speaking === 'rec:' + f ? 'border-green bg-greenSoft text-green' : 'border-line hover:border-indigo'}`}>
+                      <PlayCircle size={15} /> Запись носителя
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+          {view.tip && <p className="mt-4 text-sm flex gap-2 items-start bg-amberSoft rounded-xl px-3 py-2.5"><Lightbulb size={16} className="text-amber shrink-0 mt-0.5" /> {view.tip}</p>}
+          {lookupNote && <p className="text-sm text-muted mt-3">{lookupNote}</p>}
+          <p className="text-xs text-muted mt-4">
+            Источник: {isFresh ? SOURCE_LABEL[analysis.source] : SOURCE_LABEL.builtin}
+            {isFresh && analysis.source === 'web' && <> · <a href="https://dictionaryapi.dev" target="_blank" rel="noopener" className="text-indigo underline">dictionaryapi.dev</a></>}
+            {isFresh && analysis.spellSource === 'lt' && <> · орфография: <a href="https://languagetool.org" target="_blank" rel="noopener" className="text-indigo underline">LanguageTool</a></>}
+            {' · '}Транскрипция записана знаками МФА: ˈ — ударный слог, ː — долгий звук.
+          </p>
+        </Panel>
+      )}
+
+      <Panel>
+        <h3 className="font-display text-xl font-semibold flex items-center gap-2"><Lightbulb size={19} className="text-amber" /> Слова, которые часто произносят неправильно</h3>
+        <p className="text-sm text-muted mt-1">Нажмите, чтобы послушать и увидеть транскрипцию.</p>
+        <div className="flex flex-wrap gap-2 mt-4">
+          {SAY_EXAMPLES.map((w) => (
+            <button key={w} onClick={() => submit(w)}
+              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 transition-all duration-200 ${speaking === 'ex:' + w ? 'border-green bg-greenSoft text-green scale-105' : 'border-line bg-surface2 hover:border-indigo hover:-translate-y-0.5'}`}>
+              <Volume2 size={15} /> {w}
+            </button>
+          ))}
+        </div>
+        {history.length > 0 && (
+          <div className="mt-5 pt-4 border-t border-line">
+            <p className="text-sm text-muted">Вы слушали</p>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {history.map((w) => (
+                <button key={w} onClick={() => submit(w)} className="text-sm px-3 py-1 rounded-full border border-line transition-colors duration-200 hover:border-indigo">{w}</button>
+              ))}
+            </div>
+          </div>
+        )}
+      </Panel>
+    </div>
+  );
+}
+
+/* ---------- Приложение ---------- */
+const NAV_GROUPS = [
+  { title: null, items: [{ key: 'home', label: 'Главная', icon: Home }] },
+  { title: 'Грамматика', items: [
+    { key: 'tenses', label: 'Времена глаголов', icon: Clock },
+    { key: 'tobe', label: 'Глагол TO BE', icon: Sparkles },
+    { key: 'possessive', label: 'Притяжательный падеж', icon: Quote },
+  ] },
+  { title: 'Тренажёры', items: [
+    { key: 'checker', label: 'Проверка текста', icon: SpellCheck },
+    { key: 'pronounce', label: 'Произношение', icon: Volume2 },
+  ] },
+];
+const NAV = NAV_GROUPS.flatMap((g) => g.items);
+
+function NavList({ view, go, progress }) {
+  const counts = {
+    tenses: [TENSE_QUIZ.filter((q) => progress[q.id]).length, TENSE_QUIZ.length],
+    tobe: [TOBE_QUIZ.filter((q) => progress[q.id]).length, TOBE_QUIZ.length],
+    possessive: [APOS.filter((q) => progress[q.id]).length, APOS.length],
+  };
+  return (
+    <nav aria-label="Разделы" className="flex flex-col gap-4">
+      {NAV_GROUPS.map((g, gi) => (
+        <div key={gi}>
+          {g.title && <p className="px-3 mb-1.5 text-[11px] uppercase tracking-[0.12em] text-muted font-medium">{g.title}</p>}
+          <ul className="flex flex-col gap-0.5">
+            {g.items.map(({ key, label, icon: Ic }) => {
+              const on = view === key;
+              const c = counts[key];
+              return (
+                <li key={key}>
+                  <button onClick={() => go(key)} aria-current={on ? 'page' : undefined}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm text-left transition-all duration-200 ${on ? 'bg-indigoSoft text-indigo font-medium' : 'text-ink hover:bg-surface2'}`}>
+                    <Ic size={17} className={on ? 'text-indigo' : 'text-muted'} />
+                    <span className="flex-1">{label}</span>
+                    {c && <span className={`text-[11px] tnum ${c[0] === c[1] ? 'text-green font-semibold' : 'text-muted'}`}>{c[0]}/{c[1]}</span>}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+    </nav>
+  );
+}
+
+function AudienceBadge() {
+  return (
+    <div className="flex items-center gap-2 text-xs text-muted">
+      <span className="inline-flex -space-x-1.5">
+        <Flag code="gb" round className="w-5 h-5" title="Великобритания" />
+        <Flag code="us" round className="w-5 h-5" title="США" />
+      </span>
+      <span>English</span>
+      <ArrowRight size={12} />
+      <Flag code="ru" round className="w-5 h-5" title="Россия" />
+      <span>для русскоязычных</span>
+    </div>
+  );
+}
 
 function App() {
   const [view, setView] = useState('home');
   const [progress, setProgress] = useState(loadProgress);
   const [toast, setToast] = useState(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => { saveProgress(progress); }, [progress]);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 1800); return () => clearTimeout(t); }, [toast]);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e) => { if (e.key === 'Escape') setMenuOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [menuOpen]);
 
   const onCorrect = (id) => {
     if (progress[id]) return;
     setToast('+1 к прогрессу');
     setProgress((p) => (p[id] ? p : { ...p, [id]: true }));
   };
-  const go = (k) => { setView(k); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const go = (k) => { setView(k); setMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const correct = Object.keys(progress).length;
+  const current = NAV.find((n) => n.key === view);
+  const group = NAV_GROUPS.find((g) => g.items.some((i) => i.key === view));
 
   return (
     <div className="min-h-screen">
-      <header className="sticky z-20 bg-surface border-b border-line" style={{ top: 'env(safe-area-inset-top, 0px)' }}>
-        <div className="gutter max-w-5xl mx-auto py-3 flex flex-wrap items-center gap-3 justify-between">
-          <button onClick={() => go('home')} className="flex items-center gap-2">
-            <span className="w-9 h-9 rounded-xl bg-indigo text-surface flex items-center justify-center"><BookOpen size={19} /></span>
-            <span className="font-display text-lg font-semibold">Easy English</span>
+      <header className="sticky z-30 bg-surface border-b border-line" style={{ top: 'env(safe-area-inset-top, 0px)' }}>
+        <FlagRibbon />
+        <div className="gutter max-w-6xl mx-auto py-2.5 flex items-center gap-3">
+          <button onClick={() => setMenuOpen((o) => !o)} aria-expanded={menuOpen} aria-label="Открыть меню разделов"
+            className="lg:hidden w-10 h-10 -ml-1 rounded-xl flex items-center justify-center hover:bg-surface2 transition-colors">
+            {menuOpen ? <X size={21} /> : <Menu size={21} />}
           </button>
-          <span className="text-sm inline-flex items-center gap-1.5 bg-greenSoft text-green px-3 py-1 rounded-full font-medium tnum">
+          <button onClick={() => go('home')} className="flex items-center gap-2.5 min-w-0">
+            <span className="relative w-9 h-9 rounded-xl bg-indigo text-surface flex items-center justify-center shrink-0">
+              <BookOpen size={19} />
+              <Flag code="ru" round className="absolute -bottom-1 -right-1 w-4 h-4" />
+            </span>
+            <span className="min-w-0 text-left">
+              <span className="block font-display text-lg font-semibold leading-tight">Easy English</span>
+              <span className="block text-[11px] text-muted leading-tight lg:hidden truncate">{group && group.title ? group.title + ' · ' : ''}{current ? current.label : ''}</span>
+            </span>
+          </button>
+          <div className="hidden md:flex ml-4"><AudienceBadge /></div>
+          <span className="ml-auto text-sm inline-flex items-center gap-1.5 bg-greenSoft text-green px-3 py-1 rounded-full font-medium tnum shrink-0">
             <Trophy size={15} /> {correct} / {TOTAL}
           </span>
-          <nav className="w-full flex gap-1 overflow-x-auto -mb-3 pb-0" aria-label="Разделы">
-            {NAV.map(({ key, label, icon: Ic }) => (
-              <button key={key} onClick={() => go(key)}
-                className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-2.5 text-sm border-b-2 transition-colors duration-200 ${view === key ? 'border-indigo text-indigo font-medium' : 'border-transparent text-muted hover:text-ink'}`}>
-                <Ic size={16} /> {label}
-              </button>
-            ))}
-          </nav>
         </div>
       </header>
 
-      <main className="gutter max-w-5xl mx-auto py-8">
-        {view === 'home' && <HomeView progress={progress} go={go} reset={() => setProgress({})} />}
-        {view === 'tenses' && <TensesView progress={progress} onCorrect={onCorrect} />}
-        {view === 'tobe' && <ToBeView progress={progress} onCorrect={onCorrect} />}
-        {view === 'possessive' && <PossessiveView progress={progress} onCorrect={onCorrect} />}
-      </main>
+      {/* Мобильное меню */}
+      <div className={`lg:hidden fixed inset-0 z-20 transition-opacity duration-300 ${menuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} aria-hidden={!menuOpen}>
+        <div className="absolute inset-0" style={{ background: 'color-mix(in srgb, var(--ink) 35%, transparent)' }} onClick={() => setMenuOpen(false)} />
+        <div className={`absolute left-0 top-0 bottom-0 w-[280px] max-w-[85vw] bg-surface border-r border-line shadow-xl transition-transform duration-300 ease-out overflow-y-auto ${menuOpen ? 'translate-x-0' : '-translate-x-full'}`}
+          style={{ paddingTop: 'calc(76px + env(safe-area-inset-top, 0px))', paddingLeft: 'max(12px, env(safe-area-inset-left, 0px))', paddingRight: '12px', paddingBottom: 'calc(20px + env(safe-area-inset-bottom, 0px))' }}>
+          <NavList view={view} go={go} progress={progress} />
+          <div className="mt-6 px-3 pt-4 border-t border-line"><AudienceBadge /></div>
+        </div>
+      </div>
 
-      <footer className="gutter max-w-5xl mx-auto pb-10 text-xs text-muted">Easy English Grammar Hub · прогресс сохраняется в этом браузере</footer>
+      <div className="gutter max-w-6xl mx-auto lg:grid lg:grid-cols-[230px_minmax(0,1fr)] lg:gap-8">
+        <aside className="hidden lg:block">
+          <div className="sticky py-8" style={{ top: 'calc(64px + env(safe-area-inset-top, 0px))' }}>
+            <NavList view={view} go={go} progress={progress} />
+          </div>
+        </aside>
+        <main className="py-8 min-w-0">
+          {view === 'home' && <HomeView progress={progress} go={go} reset={() => setProgress({})} />}
+          {view === 'tenses' && <TensesView progress={progress} onCorrect={onCorrect} />}
+          {view === 'tobe' && <ToBeView progress={progress} onCorrect={onCorrect} />}
+          {view === 'possessive' && <PossessiveView progress={progress} onCorrect={onCorrect} />}
+          {view === 'checker' && <CheckerView />}
+          {view === 'pronounce' && <PronounceView />}
+        </main>
+      </div>
+
+      <footer className="gutter max-w-6xl mx-auto pb-10 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted">
+        <span className="inline-flex items-center gap-1.5"><Flag code="gb" className="w-5 h-3.5" /><Flag code="us" className="w-5 h-3.5" /><Flag code="ru" className="w-5 h-3.5" /></span>
+        <span>Easy English Grammar Hub · британский и американский английский для русскоязычных учеников · прогресс сохраняется в этом браузере</span>
+      </footer>
 
       {toast && (
-        <div className="pop fixed z-30 bg-green text-surface px-4 py-2 rounded-full font-medium shadow-lg"
+        <div className="pop fixed z-40 bg-green text-surface px-4 py-2 rounded-full font-medium shadow-lg"
           style={{ bottom: 'calc(20px + env(safe-area-inset-bottom, 0px))', right: 'max(20px, env(safe-area-inset-right, 0px))' }}>
           {toast}
         </div>
