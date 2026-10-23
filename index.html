@@ -85,7 +85,9 @@ const Home = icon('Home'), Clock = icon('Clock'), Sparkles = icon('Sparkles'), Q
   HelpCircle = icon('HelpCircle'), ChevronDown = icon('ChevronDown'),
   SpellCheck = icon('SpellCheck'), Volume2 = icon('Volume2'), Loader2 = icon('Loader2'), Square = icon('Square'),
   Wand2 = icon('Wand2'), AlertTriangle = icon('AlertTriangle'),
-  Menu = icon('Menu'), X = icon('X'), Languages = icon('Languages'), PlayCircle = icon('PlayCircle');
+  Menu = icon('Menu'), X = icon('X'), Languages = icon('Languages'), PlayCircle = icon('PlayCircle'),
+  Gamepad2 = icon('Gamepad2'), Play = icon('Play'), Pause = icon('Pause'), RotateCw = icon('RotateCw'),
+  ArrowLeft = icon('ArrowLeft'), ArrowDown = icon('ArrowDown'), ArrowDownToLine = icon('ArrowDownToLine');
 
 /* ---------- Данные ---------- */
 const TENSES = {
@@ -1935,6 +1937,421 @@ function PronounceView() {
   );
 }
 
+/* ---------- Тетрис ---------- */
+const TET_W = 10, TET_H = 20, TET_CELL = 30, TET_BEST_KEY = 'eegh-tetris-best';
+const TET_PIECES = {
+  I: { color: '#38a8e8', m: [[0, 0, 0, 0], [1, 1, 1, 1], [0, 0, 0, 0], [0, 0, 0, 0]] },
+  O: { color: '#f2b631', m: [[1, 1], [1, 1]] },
+  T: { color: '#9a6ff0', m: [[0, 1, 0], [1, 1, 1], [0, 0, 0]] },
+  S: { color: '#3fbf7f', m: [[0, 1, 1], [1, 1, 0], [0, 0, 0]] },
+  Z: { color: '#ec5f5c', m: [[1, 1, 0], [0, 1, 1], [0, 0, 0]] },
+  J: { color: '#4a6fe3', m: [[1, 0, 0], [1, 1, 1], [0, 0, 0]] },
+  L: { color: '#f08a3c', m: [[0, 0, 1], [1, 1, 1], [0, 0, 0]] },
+};
+const TET_LINE_SCORE = [0, 100, 300, 500, 800];
+const TET_LINE_WORD = ['', 'Single!', 'Double!', 'Triple!', 'Tetris!'];
+const TET_WORDS = [
+  ['line', 'линия, ряд'], ['to rotate', 'поворачивать'], ['to drop', 'ронять, бросать'],
+  ['level', 'уровень'], ['score', 'счёт, очки'], ['game over', 'игра окончена'],
+];
+
+function tetRotate(m, dir) {
+  const n = m.length;
+  return m.map((row, r) => row.map((_, c) => (dir > 0 ? m[n - 1 - c][r] : m[c][n - 1 - r])));
+}
+function tetCollide(s, m, x, y) {
+  for (let r = 0; r < m.length; r++) {
+    for (let c = 0; c < m[r].length; c++) {
+      if (!m[r][c]) continue;
+      const nx = x + c, ny = y + r;
+      if (nx < 0 || nx >= TET_W || ny >= TET_H) return true;
+      if (ny >= 0 && s.board[ny][nx]) return true;
+    }
+  }
+  return false;
+}
+function tetTake(s) {
+  if (!s.bag.length) {
+    s.bag = Object.keys(TET_PIECES);
+    for (let i = s.bag.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [s.bag[i], s.bag[j]] = [s.bag[j], s.bag[i]]; }
+  }
+  return s.bag.pop();
+}
+function tetSpawn(s) {
+  const type = s.next;
+  s.next = tetTake(s);
+  const m = TET_PIECES[type].m.map((r) => r.slice());
+  s.piece = { type, m, x: Math.floor((TET_W - m.length) / 2), y: type === 'I' ? -1 : 0 };
+  if (tetCollide(s, m, s.piece.x, s.piece.y)) s.over = true;
+}
+function tetNew() {
+  const s = { board: Array.from({ length: TET_H }, () => Array(TET_W).fill(null)), bag: [], score: 0, lines: 0, level: 1, acc: 0, over: false, piece: null, next: null };
+  s.next = tetTake(s);
+  tetSpawn(s);
+  return s;
+}
+function tetMove(s, dx, dy) {
+  const p = s.piece;
+  if (tetCollide(s, p.m, p.x + dx, p.y + dy)) return false;
+  p.x += dx; p.y += dy;
+  return true;
+}
+function tetTurn(s, dir) {
+  const p = s.piece, m = tetRotate(p.m, dir);
+  for (const k of [0, -1, 1, -2, 2]) {
+    if (!tetCollide(s, m, p.x + k, p.y)) { p.m = m; p.x += k; return true; }
+  }
+  if (!tetCollide(s, m, p.x, p.y - 1)) { p.m = m; p.y -= 1; return true; }
+  return false;
+}
+// Фиксирует фигуру, убирает заполненные линии и возвращает их количество
+function tetLock(s) {
+  const { m, x, y, type } = s.piece;
+  m.forEach((row, r) => row.forEach((v, c) => {
+    if (!v) return;
+    if (y + r < 0) { s.over = true; return; }
+    s.board[y + r][x + c] = type;
+  }));
+  if (s.over) return 0;
+  const kept = s.board.filter((row) => row.some((v) => !v));
+  const n = TET_H - kept.length;
+  while (kept.length < TET_H) kept.unshift(Array(TET_W).fill(null));
+  s.board = kept;
+  if (n) {
+    s.score += TET_LINE_SCORE[n] * s.level;
+    s.lines += n;
+    s.level = Math.floor(s.lines / 10) + 1;
+  }
+  s.acc = 0;
+  tetSpawn(s);
+  return n;
+}
+function tetGhostY(s) {
+  const p = s.piece;
+  let y = p.y;
+  while (!tetCollide(s, p.m, p.x, y + 1)) y++;
+  return y;
+}
+const tetInterval = (level) => Math.max(70, 800 * Math.pow(0.85, level - 1));
+
+function tetCell(ctx, x, y, size, color, ghost) {
+  const pad = 1.5, w = size - pad * 2, rad = size * 0.18;
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(x + pad, y + pad, w, w, rad); else ctx.rect(x + pad, y + pad, w, w);
+  if (ghost) {
+    ctx.globalAlpha = 0.16; ctx.fillStyle = color; ctx.fill();
+    ctx.globalAlpha = 0.7; ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.globalAlpha = 1;
+    return;
+  }
+  ctx.fillStyle = color; ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.28)';
+  ctx.fillRect(x + pad + 3, y + pad + 3, w - 6, Math.max(2, size * 0.14));
+}
+function tetPrep(canvas, w, h) {
+  const dpr = window.devicePixelRatio || 1;
+  const pw = Math.round(w * dpr), ph = Math.round(h * dpr);
+  if (canvas.width !== pw || canvas.height !== ph) { canvas.width = pw; canvas.height = ph; }
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return ctx;
+}
+function tetDraw(canvas, s, showPiece) {
+  const w = TET_W * TET_CELL, h = TET_H * TET_CELL;
+  const ctx = tetPrep(canvas, w, h);
+  const cs = getComputedStyle(document.documentElement);
+  ctx.fillStyle = cs.getPropertyValue('--surface-2').trim() || '#eef2fa';
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = cs.getPropertyValue('--line').trim() || '#dde3f0';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = 1; i < TET_W; i++) { ctx.moveTo(i * TET_CELL + 0.5, 0); ctx.lineTo(i * TET_CELL + 0.5, h); }
+  for (let i = 1; i < TET_H; i++) { ctx.moveTo(0, i * TET_CELL + 0.5); ctx.lineTo(w, i * TET_CELL + 0.5); }
+  ctx.stroke();
+  s.board.forEach((row, r) => row.forEach((v, c) => { if (v) tetCell(ctx, c * TET_CELL, r * TET_CELL, TET_CELL, TET_PIECES[v].color); }));
+  if (!showPiece || !s.piece || s.over) return;
+  const p = s.piece, color = TET_PIECES[p.type].color, gy = tetGhostY(s);
+  const paint = (py, ghost) => p.m.forEach((row, r) => row.forEach((v, c) => {
+    if (v && py + r >= 0) tetCell(ctx, (p.x + c) * TET_CELL, (py + r) * TET_CELL, TET_CELL, color, ghost);
+  }));
+  if (gy !== p.y) paint(gy, true);
+  paint(p.y, false);
+}
+function tetDrawNext(canvas, type) {
+  const size = 88, cell = 20;
+  const ctx = tetPrep(canvas, size, size);
+  ctx.clearRect(0, 0, size, size);
+  if (!type) return;
+  const m = TET_PIECES[type].m, cells = [];
+  m.forEach((row, r) => row.forEach((v, c) => { if (v) cells.push([r, c]); }));
+  const rows = cells.map((x) => x[0]), cols = cells.map((x) => x[1]);
+  const r0 = Math.min(...rows), c0 = Math.min(...cols);
+  const ox = (size - (Math.max(...cols) - c0 + 1) * cell) / 2, oy = (size - (Math.max(...rows) - r0 + 1) * cell) / 2;
+  cells.forEach(([r, c]) => tetCell(ctx, ox + (c - c0) * cell, oy + (r - r0) * cell, cell, TET_PIECES[type].color));
+}
+
+function TetPad({ onPress, label, repeat = false, children }) {
+  const timer = React.useRef(null);
+  const stop = () => { clearTimeout(timer.current); clearInterval(timer.current); timer.current = null; };
+  useEffect(() => stop, []);
+  const down = (e) => {
+    e.preventDefault();
+    stop();
+    onPress();
+    if (repeat) timer.current = setTimeout(() => { timer.current = setInterval(onPress, 55); }, 180);
+  };
+  return (
+    <button type="button" aria-label={label} onPointerDown={down} onPointerUp={stop} onPointerLeave={stop} onPointerCancel={stop}
+      onContextMenu={(e) => e.preventDefault()}
+      className="h-14 rounded-2xl bg-surface2 border border-line flex items-center justify-center text-ink active:bg-indigoSoft active:text-indigo select-none touch-none">
+      {children}
+    </button>
+  );
+}
+
+function TetStat({ label, value, accent }) {
+  return (
+    <div className="bg-surface2 rounded-xl px-3 py-2">
+      <p className="text-[11px] uppercase tracking-[0.1em] text-muted">{label}</p>
+      <p className={`font-display text-xl font-semibold tnum leading-tight ${accent || ''}`}>{value}</p>
+    </div>
+  );
+}
+
+function TetrisView() {
+  const boardRef = React.useRef(null);
+  const nextRef = React.useRef(null);
+  const layoutRef = React.useRef(null);
+  const game = React.useRef(null);
+  if (!game.current) game.current = tetNew();
+  const [status, setStatus] = useState('idle'); // idle | play | pause | over
+  const statusRef = React.useRef(status);
+  statusRef.current = status;
+  const [hud, setHud] = useState({ score: 0, lines: 0, level: 1 });
+  const [flash, setFlash] = useState(null);
+  const [record, setRecord] = useState(false);
+  const [best, setBest] = useState(() => { try { return Number(localStorage.getItem(TET_BEST_KEY)) || 0; } catch (e) { return 0; } });
+  const bestRef = React.useRef(best);
+  const coarse = useMemo(() => !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches), []);
+
+  const draw = () => {
+    const s = game.current;
+    if (boardRef.current) tetDraw(boardRef.current, s, statusRef.current !== 'idle');
+    if (nextRef.current) tetDrawNext(nextRef.current, statusRef.current === 'idle' ? null : s.next);
+  };
+  const sync = (cleared) => {
+    const s = game.current;
+    setHud({ score: s.score, lines: s.lines, level: s.level });
+    if (cleared) setFlash({ text: TET_LINE_WORD[cleared], id: Date.now() });
+    if (s.over) {
+      const rec = s.score > bestRef.current;
+      setRecord(rec);
+      if (rec) {
+        bestRef.current = s.score;
+        setBest(s.score);
+        try { localStorage.setItem(TET_BEST_KEY, String(s.score)); } catch (e) {}
+      }
+      setStatus('over');
+    }
+  };
+  const act = (fn) => {
+    if (statusRef.current !== 'play') return;
+    sync(fn(game.current) || 0);
+    draw();
+  };
+  const start = () => {
+    game.current = tetNew();
+    setHud({ score: 0, lines: 0, level: 1 });
+    setFlash(null);
+    setRecord(false);
+    setStatus('play');
+    if (coarse && layoutRef.current) layoutRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  const left = () => act((s) => { tetMove(s, -1, 0); });
+  const right = () => act((s) => { tetMove(s, 1, 0); });
+  const rotate = () => act((s) => { tetTurn(s, 1); });
+  const rotateBack = () => act((s) => { tetTurn(s, -1); });
+  const soft = () => act((s) => {
+    if (tetMove(s, 0, 1)) { s.score += 1; s.acc = 0; return 0; }
+    return tetLock(s);
+  });
+  const hard = () => act((s) => {
+    let n = 0;
+    while (tetMove(s, 0, 1)) n++;
+    s.score += n * 2;
+    return tetLock(s);
+  });
+
+  // Игровой цикл: гравитация по таймеру уровня
+  useEffect(() => {
+    draw();
+    if (status !== 'play') return;
+    let raf, last = performance.now();
+    const frame = (t) => {
+      const s = game.current;
+      s.acc += Math.min(t - last, 250);
+      last = t;
+      if (s.acc >= tetInterval(s.level)) {
+        s.acc = 0;
+        if (!tetMove(s, 0, 1)) sync(tetLock(s));
+      }
+      draw();
+      if (!s.over) raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(raf);
+  }, [status]);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.target.closest && e.target.closest('input, textarea, select')) return;
+      const st = statusRef.current, k = e.code;
+      if (st === 'play') {
+        const map = { ArrowLeft: left, ArrowRight: right, ArrowDown: soft, ArrowUp: rotate, KeyX: rotate, KeyZ: rotateBack, Space: hard };
+        if (map[k]) {
+          e.preventDefault();
+          if (k === 'Space' && e.repeat) return;
+          map[k]();
+        } else if (k === 'KeyP' || k === 'Escape') {
+          e.preventDefault();
+          setStatus('pause');
+        }
+      } else if (st === 'pause' && ['KeyP', 'Escape', 'Enter', 'Space'].includes(k)) {
+        e.preventDefault();
+        setStatus('play');
+      } else if ((st === 'idle' || st === 'over') && k === 'Enter') {
+        e.preventDefault();
+        start();
+      }
+    };
+    const onHide = () => { if (document.hidden && statusRef.current === 'play') setStatus('pause'); };
+    const mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+    window.addEventListener('keydown', onKey);
+    document.addEventListener('visibilitychange', onHide);
+    if (mq && mq.addEventListener) mq.addEventListener('change', draw);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('visibilitychange', onHide);
+      if (mq && mq.removeEventListener) mq.removeEventListener('change', draw);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!flash) return;
+    const t = setTimeout(() => setFlash(null), 900);
+    return () => clearTimeout(t);
+  }, [flash]);
+
+  const press = (fn) => (e) => { e.currentTarget.blur(); fn(); };
+  const mainBtn = 'inline-flex items-center justify-center gap-2 bg-indigo text-surface px-5 py-2.5 rounded-xl font-medium transition-transform duration-200 hover:-translate-y-0.5';
+  const ghostBtn = 'inline-flex items-center justify-center gap-2 bg-surface2 border border-line text-ink px-4 py-2.5 rounded-xl font-medium transition-colors hover:bg-indigoSoft';
+  const keys = [['← →', 'двигать'], ['↑ / X', 'повернуть'], ['Z', 'повернуть назад'], ['↓', 'ускорить'], ['Пробел', 'уронить'], ['P / Esc', 'пауза']];
+
+  return (
+    <div className="fade-in">
+      <SectionTitle eyebrow="Игры · перерыв" title="Тетрис">
+        Отдохните между уроками: собирайте полные линии из падающих фигур. Каждые 10 линий — новый уровень и выше скорость.
+      </SectionTitle>
+      <Panel>
+        <div ref={layoutRef} style={{ scrollMarginTop: 80 }} className="flex flex-col sm:flex-row gap-5 sm:gap-8 items-center sm:items-start sm:justify-center">
+          <div className="flex flex-col gap-4 items-center">
+            <div className="relative" style={{ height: `min(600px, ${coarse ? 52 : 70}vh)`, aspectRatio: '1 / 2' }}>
+              <canvas ref={boardRef} className="block w-full h-full rounded-xl border border-line" aria-label="Игровое поле тетриса" role="img" />
+              {flash && status === 'play' && (
+                <div key={flash.id} className="pop absolute inset-x-0 top-1/3 text-center pointer-events-none" lang="en">
+                  <span className="font-display text-3xl font-semibold text-indigo bg-surface px-3 py-1 rounded-xl shadow">{flash.text}</span>
+                </div>
+              )}
+              {status !== 'play' && (
+                <div className="absolute inset-0 rounded-xl flex flex-col items-center justify-center text-center p-4 gap-3"
+                  style={{ background: 'color-mix(in srgb, var(--surface) 84%, transparent)' }}>
+                  {status === 'idle' && <>
+                    <Gamepad2 size={40} className="text-indigo" />
+                    <p className="font-display text-2xl font-semibold">Готовы?</p>
+                    <p className="text-sm text-muted max-w-[20ch]">{coarse ? 'Управляйте кнопками под полем' : 'Enter — старт, стрелки — управление'}</p>
+                    <button onClick={press(start)} className={mainBtn}><Play size={18} /> Играть</button>
+                  </>}
+                  {status === 'pause' && <>
+                    <p className="font-display text-2xl font-semibold">Пауза</p>
+                    <p className="text-sm text-muted" lang="en">Game paused</p>
+                    <button onClick={press(() => setStatus('play'))} className={mainBtn}><Play size={18} /> Продолжить</button>
+                  </>}
+                  {status === 'over' && <>
+                    <p className="font-display text-2xl font-semibold" lang="en">Game over</p>
+                    <p className="text-sm text-muted">Игра окончена</p>
+                    <p className="font-display text-4xl font-semibold tnum">{hud.score}</p>
+                    {record && <p className="pop text-sm font-medium text-green bg-greenSoft px-3 py-1 rounded-full">Новый рекорд!</p>}
+                    <button onClick={press(start)} className={mainBtn}><RotateCcw size={18} /> Ещё раз</button>
+                  </>}
+                </div>
+              )}
+            </div>
+            {coarse && (
+              <div className="grid grid-cols-3 gap-2 w-full max-w-[300px]">
+                <TetPad label="Влево" onPress={left} repeat><ArrowLeft size={24} /></TetPad>
+                <TetPad label="Повернуть" onPress={rotate}><RotateCw size={24} /></TetPad>
+                <TetPad label="Вправо" onPress={right} repeat><ArrowRight size={24} /></TetPad>
+                <TetPad label="Ускорить" onPress={soft} repeat><ArrowDown size={24} /></TetPad>
+                <TetPad label="Уронить" onPress={hard}><ArrowDownToLine size={24} /></TetPad>
+                <TetPad label={status === 'play' ? 'Пауза' : 'Продолжить'} onPress={() => {
+                  const st = statusRef.current;
+                  if (st === 'play') setStatus('pause'); else if (st === 'pause') setStatus('play'); else start();
+                }}>{status === 'play' ? <Pause size={24} /> : <Play size={24} />}</TetPad>
+              </div>
+            )}
+          </div>
+
+          <div className="w-full sm:w-56 flex flex-col gap-4 order-first sm:order-none">
+            <div className="flex sm:flex-col gap-3">
+              <div className="bg-surface2 rounded-xl p-2 flex flex-col items-center shrink-0">
+                <p className="text-[11px] uppercase tracking-[0.1em] text-muted self-start px-1" lang="en">Next</p>
+                <canvas ref={nextRef} style={{ width: 88, height: 88 }} aria-hidden="true" />
+              </div>
+              <div className="grid grid-cols-2 gap-2 flex-1">
+                <TetStat label="Очки" value={hud.score} accent="text-indigo" />
+                <TetStat label="Линии" value={hud.lines} />
+                <TetStat label="Уровень" value={hud.level} />
+                <TetStat label="Рекорд" value={best} accent="text-green" />
+              </div>
+            </div>
+            {!coarse && (
+              <div className="flex gap-2">
+                {status === 'play'
+                  ? <button onClick={press(() => setStatus('pause'))} className={`${ghostBtn} flex-1`}><Pause size={17} /> Пауза</button>
+                  : status === 'pause'
+                    ? <button onClick={press(() => setStatus('play'))} className={`${ghostBtn} flex-1`}><Play size={17} /> Дальше</button>
+                    : <button onClick={press(start)} className={`${ghostBtn} flex-1`}><Play size={17} /> Старт</button>}
+                {status !== 'idle' && <button onClick={press(start)} className={ghostBtn} aria-label="Начать заново" title="Начать заново"><RotateCcw size={17} /></button>}
+              </div>
+            )}
+            {!coarse && (
+              <div>
+                <p className="text-xs uppercase tracking-[0.12em] text-muted font-medium mb-2">Управление</p>
+                <ul className="text-sm space-y-1.5">
+                  {keys.map(([k, d]) => (
+                    <li key={k} className="flex items-center justify-between gap-2">
+                      <kbd className="font-body text-xs bg-surface2 border border-line rounded-md px-1.5 py-0.5">{k}</kbd>
+                      <span className="text-muted">{d}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <div className="hidden sm:block">
+              <p className="text-xs uppercase tracking-[0.12em] text-muted font-medium mb-2">Словарик игрока</p>
+              <ul className="text-sm space-y-1">
+                {TET_WORDS.map(([en, ru]) => (
+                  <li key={en}><span className="font-medium" lang="en">{en}</span> <span className="text-muted">— {ru}</span></li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
 /* ---------- Приложение ---------- */
 const NAV_GROUPS = [
   { title: null, items: [{ key: 'home', label: 'Главная', icon: Home }] },
@@ -1946,6 +2363,9 @@ const NAV_GROUPS = [
   { title: 'Тренажёры', items: [
     { key: 'checker', label: 'Проверка текста', icon: SpellCheck },
     { key: 'pronounce', label: 'Произношение', icon: Volume2 },
+  ] },
+  { title: 'Игры', items: [
+    { key: 'tetris', label: 'Тетрис', icon: Gamepad2 },
   ] },
 ];
 const NAV = NAV_GROUPS.flatMap((g) => g.items);
@@ -2071,6 +2491,7 @@ function App() {
           {view === 'possessive' && <PossessiveView progress={progress} onCorrect={onCorrect} />}
           {view === 'checker' && <CheckerView />}
           {view === 'pronounce' && <PronounceView />}
+          {view === 'tetris' && <TetrisView />}
         </main>
       </div>
 
