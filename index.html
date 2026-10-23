@@ -719,7 +719,7 @@ function buildCheckPrompt(text) {
     'You are a friendly English teacher for Russian-speaking beginners (A1–A2).',
     'Check the student\'s English text below for grammar, spelling, punctuation and word-choice mistakes.',
     'Reply with ONLY a JSON object of this shape:',
-    '{"errors":[{"wrong":"exact fragment copied from the text","correct":"fixed fragment","type":"grammar|spelling|punctuation|word choice","explain":"short explanation in Russian, 1-2 sentences, simple words, name the rule"}],"corrected":"the whole text with all fixes","summary":"one encouraging sentence in Russian"}',
+    '{"errors":[{"wrong":"exact fragment copied from the text","correct":"fixed fragment","type":"grammar|spelling|punctuation|word choice","explain":"short explanation in Russian, 1-2 sentences, simple words, name the rule"}],"corrected":"the whole text with all fixes","translation":"natural Russian translation of the corrected text","summary":"one encouraging sentence in Russian"}',
     'Rules: "wrong" must be copied character-for-character from the text and be as short as possible (a few words). List every mistake once, in the order they appear. Do not invent mistakes in correct text. If there are no mistakes, return an empty "errors" array.',
     '',
     'Student text:',
@@ -858,6 +858,37 @@ function CheckerView() {
   const [note, setNote] = useState('');
   const [active, setActive] = useState(null);
   const [ctl, setCtl] = useState(null);
+  const [tr, setTr] = useState(null); // {status: 'loading'|'done'|'error', text, source, note}
+  const trCtl = React.useRef(null);
+  const areaRef = React.useRef(null);
+
+  // Поле растёт вместе с текстом
+  React.useLayoutEffect(() => {
+    const el = areaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.max(el.scrollHeight + 4, 120) + 'px';
+  }, [text]);
+  useEffect(() => {
+    const onResize = () => { const el = areaRef.current; if (el) { el.style.height = 'auto'; el.style.height = Math.max(el.scrollHeight + 4, 120) + 'px'; } };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  const translate = async (src) => {
+    if (trCtl.current) trCtl.current.abort();
+    const c = new AbortController(); trCtl.current = c;
+    setTr({ status: 'loading' });
+    try {
+      const t = await translateMyMemory(src, c.signal);
+      if (!c.signal.aborted) setTr({ status: 'done', text: t, source: 'mymemory' });
+    } catch (e) {
+      if (isAbort(e)) return;
+      setTr({ status: 'error', note: e && e.code === 'quota'
+        ? 'Дневной лимит бесплатного перевода закончился. Перевод снова будет доступен завтра.'
+        : 'Не удалось получить перевод: нет интернета или сервис перевода занят.' });
+    }
+  };
 
   useEffect(() => {
     let alive = true;
@@ -873,12 +904,14 @@ function CheckerView() {
     setResult({ errors, corrected, summary: errors.length ? 'Простая проверка нашла типичные ошибки. Она знает не все правила.' : 'Простая проверка ошибок не нашла, но она знает только базовые правила.', engine: 'offline' });
     setNote(why || '');
     setStatus('done');
+    translate(corrected || src);
   };
 
   const check = async () => {
     const src = text.trim();
     if (!src) return;
-    setChecked(src); setActive(null); setNote(''); setResult(null);
+    setChecked(src); setActive(null); setNote(''); setResult(null); setTr(null);
+    if (trCtl.current) trCtl.current.abort();
     const c = new AbortController(); setCtl(c);
     setStatus('loading');
     try {
@@ -887,6 +920,7 @@ function CheckerView() {
           const data = await sample.json(buildCheckPrompt(src), { signal: c.signal });
           const errors = Array.isArray(data && data.errors) ? data.errors.filter((e) => e && e.wrong) : [];
           setResult({ errors, corrected: String((data && data.corrected) || src), summary: String((data && data.summary) || ''), engine: 'claude' });
+          if (data && data.translation) setTr({ status: 'done', text: String(data.translation), source: 'claude' });
           setStatus('done');
           return;
         } catch (e) {
@@ -901,6 +935,7 @@ function CheckerView() {
         const n = lt.errors.length;
         setResult({ ...lt, engine: 'lt', summary: n ? 'Нажмите на ошибку, чтобы увидеть объяснение и варианты исправления.' : 'Отлично! LanguageTool не нашёл ошибок в этом тексте.' });
         setStatus('done');
+        translate(lt.corrected || src);
       } catch (e) {
         if (e && e.name === 'AbortError') { setStatus('idle'); return; }
         runOffline(src, e && e.code === 'lt_rate'
@@ -919,9 +954,9 @@ function CheckerView() {
 
       <Panel>
         <label htmlFor="check-text" className="text-sm text-muted">Ваш текст на английском</label>
-        <textarea id="check-text" value={text} onChange={(e) => setText(e.target.value)} rows={5} maxLength={3000}
+        <textarea id="check-text" ref={areaRef} value={text} onChange={(e) => setText(e.target.value)} rows={4} maxLength={3000}
           placeholder="Например: My sister like music and she play the guitar."
-          className="mt-2 w-full rounded-xl border-2 border-line bg-surface2 p-3 text-base leading-relaxed outline-none transition-colors duration-200 focus:border-indigo resize-y" />
+          className="mt-2 w-full rounded-xl border-2 border-line bg-surface2 p-3 text-base leading-relaxed outline-none transition-colors duration-200 focus:border-indigo resize-none overflow-hidden" style={{ minHeight: 120, transition: 'height .15s ease, border-color .2s' }} />
         <div className="mt-3 flex flex-wrap items-center gap-3">
           {status === 'loading' ? (
             <button onClick={() => ctl && ctl.abort()} className="inline-flex items-center gap-2 border-2 border-line px-5 py-2.5 rounded-xl font-medium transition-colors hover:border-red">
@@ -932,7 +967,7 @@ function CheckerView() {
               <SpellCheck size={18} /> Проверить
             </button>
           )}
-          <button onClick={() => { setText(''); setResult(null); setNote(''); }} className="text-sm text-muted hover:text-ink transition-colors">Очистить</button>
+          <button onClick={() => { setText(''); setResult(null); setNote(''); setTr(null); }} className="text-sm text-muted hover:text-ink transition-colors">Очистить</button>
           <button onClick={() => setText(CHECK_SAMPLE)} className="text-sm text-muted hover:text-ink transition-colors">Пример с ошибками</button>
           <span className="text-xs text-muted ml-auto tnum">{words} слов · {text.length}/3000</span>
         </div>
@@ -1005,6 +1040,23 @@ function CheckerView() {
                   </li>
                 ))}
               </ol>
+            </Panel>
+          )}
+
+          {tr && (
+            <Panel className="fade-in">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="font-display text-xl font-semibold flex items-center gap-2"><Flag code="ru" className="w-6 h-4" /> Перевод на русский</h3>
+                {tr.status === 'done' && (
+                  <span className="text-xs text-muted">
+                    {tr.source === 'claude' ? 'Перевёл Claude' : <>Машинный перевод <a href="https://mymemory.translated.net" target="_blank" rel="noopener" className="text-indigo underline">MyMemory</a></>}
+                  </span>
+                )}
+              </div>
+              {tr.status === 'loading' && <p className="mt-3 text-muted flex items-center gap-2"><Loader2 size={17} className="animate-spin text-indigo" /> Переводим…</p>}
+              {tr.status === 'done' && <p className="mt-3 text-lg leading-relaxed bg-blueSoft rounded-xl p-4 break-words" lang="ru">{tr.text}</p>}
+              {tr.status === 'error' && <p className="mt-3 text-sm text-muted">{tr.note}</p>}
+              {tr.status === 'done' && result.errors.length > 0 && <p className="text-xs text-muted mt-2">Переведён исправленный вариант текста.</p>}
             </Panel>
           )}
 
@@ -1374,6 +1426,101 @@ async function fetchDictionary(word, signal) {
 
 const stripSlashes = (s) => String(s || '').replace(/^[\/\[]|[\/\]]$/g, '').trim();
 const POS_RU = { noun: 'существительное', verb: 'глагол', adjective: 'прилагательное', adverb: 'наречие', pronoun: 'местоимение', preposition: 'предлог', conjunction: 'союз', interjection: 'междометие', exclamation: 'восклицание' };
+const isAbort = (e) => e && e.name === 'AbortError';
+
+/* Викисловарь (en.wiktionary.org): транскрипции почти всех слов, с пометками US / UK */
+const WIKI_US = /^(US|GA|GenAm|General American|American|Canada|CA|North American|NAmE)$/i;
+const WIKI_UK = /^(UK|RP|Received Pronunciation|British|SSB|Southern England|England|BrE)$/i;
+function parseWiktionaryIPA(content) {
+  const start = content.search(/^==\s*English\s*==\s*$/m);
+  if (start < 0) return null;
+  const rest = content.slice(start + 5);
+  const next = rest.search(/^==[^=].*==\s*$/m);
+  const section = next >= 0 ? rest.slice(0, next) : rest;
+  let us = '', uk = '', any = '';
+  section.split('\n').forEach((line) => {
+    const tpl = line.match(/\{\{IPA\|en\|([^}]*)\}\}/);
+    if (!tpl) return;
+    const args = tpl[1].split('|');
+    const prons = args.filter((a) => /^[\/\[]/.test(a.trim())).map((a) => a.trim());
+    const phonemic = prons.find((p) => p.startsWith('/')) || prons[0];
+    if (!phonemic) return;
+    const labels = [];
+    (line.match(/\{\{(?:a|accent|lb)\|([^}]*)\}\}/g) || []).forEach((m) => m.replace(/^\{\{\w+\|/, '').replace(/\}\}$/, '').split('|').forEach((x) => labels.push(x.trim())));
+    args.filter((a) => /^(a|aa|q|qq)\d*=/.test(a)).forEach((a) => a.split('=')[1].split(/[,;]/).forEach((x) => labels.push(x.trim())));
+    const isUS = labels.some((l) => WIKI_US.test(l));
+    const isUK = labels.some((l) => WIKI_UK.test(l));
+    if (isUS && !us) us = phonemic;
+    if (isUK && !uk) uk = phonemic;
+    if (!isUS && !isUK && !any) any = phonemic;
+  });
+  if (!us && !uk && !any) return null;
+  return { us: stripSlashes(us || any || uk), uk: stripSlashes(uk || any || us) };
+}
+async function fetchWiktionary(word, signal) {
+  const variants = [word.toLowerCase()];
+  if (word !== word.toLowerCase()) variants.push(word);
+  else variants.push(word.charAt(0).toUpperCase() + word.slice(1));
+  for (const v of variants) {
+    const url = 'https://en.wiktionary.org/w/api.php?action=query&prop=revisions&rvprop=content&rvslots=main&format=json&formatversion=2&redirects=1&origin=*&titles=' + encodeURIComponent(v);
+    const res = await fetch(url, { signal });
+    if (!res.ok) throw new Error('wiki ' + res.status);
+    const data = await res.json();
+    const page = data && data.query && data.query.pages && data.query.pages[0];
+    const content = page && !page.missing && page.revisions && page.revisions[0] && page.revisions[0].slots && page.revisions[0].slots.main.content;
+    if (content) { const ipa = parseWiktionaryIPA(content); if (ipa) return ipa; }
+  }
+  return null;
+}
+
+/* Datamuse (основан на словаре произношений CMU): американская транскрипция и исправление опечаток */
+async function fetchDatamuseIPA(word, signal) {
+  const res = await fetch('https://api.datamuse.com/words?md=r&ipa=1&max=1&sp=' + encodeURIComponent(word.toLowerCase()), { signal });
+  if (!res.ok) throw new Error('datamuse ' + res.status);
+  const data = await res.json();
+  const hit = Array.isArray(data) ? data[0] : null;
+  if (!hit || String(hit.word).toLowerCase() !== word.toLowerCase()) return null;
+  const tag = (hit.tags || []).find((t) => /^(ipa_pron|pron):/.test(t));
+  if (!tag || !tag.startsWith('ipa_pron:')) return null;
+  return tag.slice(9).trim();
+}
+async function fetchDatamuseSuggestions(word, signal) {
+  const res = await fetch('https://api.datamuse.com/sug?max=4&s=' + encodeURIComponent(word.toLowerCase()), { signal });
+  if (!res.ok) throw new Error('datamuse ' + res.status);
+  const data = await res.json();
+  return (Array.isArray(data) ? data : []).map((d) => String(d.word)).filter((w) => /^[a-z' -]+$/i.test(w) && w.toLowerCase() !== word.toLowerCase()).slice(0, 3);
+}
+
+/* MyMemory: бесплатный машинный перевод англ. → рус. (до 500 байт за запрос, есть дневной лимит) */
+function splitForTranslation(text, max = 450) {
+  const sentences = text.match(/[^.!?\n]+[.!?]*\s*/g) || [text];
+  const chunks = []; let cur = '';
+  const bytes = (s) => new TextEncoder().encode(s).length;
+  sentences.forEach((s) => {
+    if (bytes(cur + s) <= max) { cur += s; return; }
+    if (cur) chunks.push(cur);
+    if (bytes(s) <= max) { cur = s; return; }
+    let piece = '';
+    s.split(/(\s+)/).forEach((w) => { if (bytes(piece + w) > max) { if (piece) chunks.push(piece); piece = w; } else piece += w; });
+    cur = piece;
+  });
+  if (cur.trim()) chunks.push(cur);
+  return chunks.map((c) => c.trim()).filter(Boolean);
+}
+async function translateMyMemory(text, signal) {
+  const out = [];
+  for (const chunk of splitForTranslation(text)) {
+    const res = await fetch('https://api.mymemory.translated.net/get?langpair=en|ru&q=' + encodeURIComponent(chunk), { signal });
+    if (!res.ok) { const e = new Error('mymemory ' + res.status); e.code = res.status === 429 ? 'quota' : 'http'; throw e; }
+    const data = await res.json();
+    const t = data && data.responseData && data.responseData.translatedText;
+    const status = Number(data && data.responseStatus);
+    if (status === 429 || /MYMEMORY WARNING|USED ALL AVAILABLE FREE/i.test(String(t))) { const e = new Error('quota'); e.code = 'quota'; throw e; }
+    if (status !== 200 || !t) throw new Error('mymemory status ' + status);
+    out.push(t);
+  }
+  return out.join(' ');
+}
 
 async function webAnalyze(input, signal) {
   const base = offlineAnalyze(input);
@@ -1388,43 +1535,61 @@ async function webAnalyze(input, signal) {
       tokens = tokenize(input).map((t) => {
         const m = typos.find((x) => x.offset < t.end && x.offset + x.length > t.start);
         if (m) return { ...t, ok: false, sure: true, suggestions: (m.replacements || []).slice(0, 3).map((r) => r.value), source: 'lt' };
-        return { ...t, ok: true, source: 'lt' };
+        const own = base.tokens.find((b) => b.start === t.start);
+        return { ...t, ok: true, source: 'lt', unknown: !!(own && own.unknown) };
       });
       spellSource = 'lt';
     }
-  } catch (e) { if (e && e.name === 'AbortError') throw e; }
+  } catch (e) { if (isAbort(e)) throw e; }
 
   const corrected = applyFixes(input, tokens);
   const words = tokenize(corrected).map((t) => t.text).slice(0, 6);
-  const look = await Promise.all(words.map((w) => fetchDictionary(w, signal).catch((e) => { if (e && e.name === 'AbortError') throw e; return null; })));
-  const per = words.map((w, i) => {
-    const d = look[i];
-    const b = DICT[w.toLowerCase()];
-    if (d && d.found && (d.us || d.uk)) return { us: stripSlashes(d.us), uk: stripSlashes(d.uk) };
-    if (b) return { us: b.us, uk: b.uk };
+  const safe = (p) => p.catch((e) => { if (isAbort(e)) throw e; return null; });
+  const [dicts, wikis] = await Promise.all([
+    Promise.all(words.map((w) => safe(fetchDictionary(w, signal)))),
+    Promise.all(words.map((w) => safe(fetchWiktionary(w, signal)))),
+  ]);
+  const sources = new Set();
+  const per = await Promise.all(words.map(async (w, i) => {
+    const d = dicts[i], wk = wikis[i], b = DICT[w.toLowerCase()];
+    if (wk) { sources.add('wiktionary'); return { us: wk.us, uk: wk.uk }; }
+    if (d && d.found && (d.us || d.uk)) { sources.add('web'); return { us: stripSlashes(d.us || d.uk), uk: stripSlashes(d.uk || d.us) }; }
+    if (b) { sources.add('builtin'); return { us: b.us, uk: b.uk }; }
+    const dm = await safe(fetchDatamuseIPA(w, signal));
+    if (dm) { sources.add('datamuse'); return { us: dm, uk: '' }; }
     return null;
-  });
-  // слова, которых нет ни в словаре, ни в LanguageTool — пометим как подозрительные
-  if (spellSource === 'builtin') {
-    tokens = tokens.map((t) => {
-      const i = words.findIndex((w) => w.toLowerCase() === t.text.toLowerCase());
-      if (t.ok && t.unknown && i >= 0 && look[i] && look[i].found === false) return { ...t, ok: false, sure: false, suggestions: [] };
-      return t;
-    });
-  }
+  }));
+  // Слово не нашлось ни в одном словаре — пометим как подозрительное; варианты без подсказок спросим у Datamuse
+  tokens = await Promise.all(tokens.map(async (t) => {
+    const i = words.findIndex((w) => w.toLowerCase() === t.text.toLowerCase());
+    const nowhere = t.ok && t.unknown && i >= 0 && !per[i] && !wikis[i] && !(dicts[i] && dicts[i].found);
+    const needs = nowhere || (!t.ok && (!t.suggestions || !t.suggestions.length));
+    if (!needs) return t;
+    let sug = [];
+    try { sug = (await fetchDatamuseSuggestions(t.text, signal)).map((x) => keepCase(t.text, x)); } catch (e) { if (isAbort(e)) throw e; }
+    if (nowhere) return { ...t, ok: false, sure: false, suggestions: sug, source: sug.length ? 'datamuse' : t.source };
+    return sug.length ? { ...t, suggestions: sug, source: 'datamuse' } : t;
+  }));
+  const unknownWords = tokens.some((t) => !t.ok);
+
   const full = words.length > 0 && per.every(Boolean);
-  const single = words.length === 1 ? look[0] : null;
+  const single = words.length === 1 ? dicts[0] : null;
   const entry = words.length === 1 ? DICT[words[0].toLowerCase()] : null;
+  let ru = entry ? entry.ru : '';
+  let ruSource = entry ? 'builtin' : '';
+  if (!ru && words.length && !unknownWords) {
+    try { ru = await translateMyMemory(words.join(' '), signal); ruSource = 'mymemory'; } catch (e) { if (isAbort(e)) throw e; }
+  }
   return {
     input, tokens, corrected,
     ipaUS: full ? '/' + per.map((p) => p.us).join(' ') + '/' : '',
-    ipaUK: full ? '/' + per.map((p) => p.uk).join(' ') + '/' : '',
-    ru: entry ? entry.ru : '',
+    ipaUK: full && per.every((p) => p.uk) ? '/' + per.map((p) => p.uk).join(' ') + '/' : '',
+    ru, ruSource,
     pos: single && single.found ? (POS_RU[single.pos] || single.pos) : '',
     def: single && single.found ? single.def : '',
     audioUS: single && single.found ? single.audioUS : '',
     audioUK: single && single.found ? single.audioUK : '',
-    source: (look.some((d) => d && d.found) ? 'web' : 'builtin'),
+    source: sources.size ? [...sources].join('+') : 'builtin',
     spellSource,
   };
 }
@@ -1482,7 +1647,13 @@ function SpellToken({ t, onPick }) {
 
 const SAY_EXAMPLES = ['thought', 'comfortable', 'vegetable', 'Wednesday', 'through', 'world', 'island', 'answer'];
 const SPEEDS = [{ v: 0.6, l: 'Медленно' }, { v: 0.85, l: 'Спокойно' }, { v: 1, l: 'Обычно' }];
-const SOURCE_LABEL = { claude: 'Claude', web: 'словарь Free Dictionary API', builtin: 'встроенный словарь приложения' };
+const SOURCES = {
+  claude: { label: 'Claude' },
+  wiktionary: { label: 'Викисловарь (Wiktionary)', url: 'https://en.wiktionary.org' },
+  web: { label: 'Free Dictionary API', url: 'https://dictionaryapi.dev' },
+  datamuse: { label: 'Datamuse / CMU', url: 'https://www.datamuse.com/api/' },
+  builtin: { label: 'встроенный словарь приложения' },
+};
 
 function PronounceView() {
   const supported = typeof window !== 'undefined' && 'speechSynthesis' in window && typeof window.SpeechSynthesisUtterance === 'function';
@@ -1726,9 +1897,13 @@ function PronounceView() {
           {view.tip && <p className="mt-4 text-sm flex gap-2 items-start bg-amberSoft rounded-xl px-3 py-2.5"><Lightbulb size={16} className="text-amber shrink-0 mt-0.5" /> {view.tip}</p>}
           {lookupNote && <p className="text-sm text-muted mt-3">{lookupNote}</p>}
           <p className="text-xs text-muted mt-4">
-            Источник: {isFresh ? SOURCE_LABEL[analysis.source] : SOURCE_LABEL.builtin}
-            {isFresh && analysis.source === 'web' && <> · <a href="https://dictionaryapi.dev" target="_blank" rel="noopener" className="text-indigo underline">dictionaryapi.dev</a></>}
+            Источник: {(isFresh ? analysis.source : 'builtin').split('+').map((k, i) => {
+              const src = SOURCES[k] || SOURCES.builtin;
+              return <React.Fragment key={k}>{i > 0 && ', '}{src.url ? <a href={src.url} target="_blank" rel="noopener" className="text-indigo underline">{src.label}</a> : src.label}</React.Fragment>;
+            })}
+            {isFresh && analysis.ruSource === 'mymemory' && <> · перевод: <a href="https://mymemory.translated.net" target="_blank" rel="noopener" className="text-indigo underline">MyMemory</a></>}
             {isFresh && analysis.spellSource === 'lt' && <> · орфография: <a href="https://languagetool.org" target="_blank" rel="noopener" className="text-indigo underline">LanguageTool</a></>}
+            {isFresh && analysis.tokens.some((t) => t.source === 'datamuse') && <> · подсказки: <a href="https://www.datamuse.com/api/" target="_blank" rel="noopener" className="text-indigo underline">Datamuse</a></>}
             {' · '}Транскрипция записана знаками МФА: ˈ — ударный слог, ː — долгий звук.
           </p>
         </Panel>
