@@ -186,6 +186,30 @@ const TENSE_QUIZ = [
     id: 't3', before: 'We', after: 'you tomorrow.', options: ['call', 'called', 'will call'], answer: 'will call',
     explain: '«Tomorrow» (завтра) — будущее, нужен Future Simple: will + глагол без изменений.',
   },
+  {
+    id: 't4', before: 'They', after: 'football every Saturday.', options: ['play', 'played', 'will play'], answer: 'play',
+    explain: '«Every Saturday» (каждую субботу) — регулярное действие, это Present Simple. С they глагол не меняется: play.',
+  },
+  {
+    id: 't5', before: 'We', after: 'Sochi last summer.', options: ['visit', 'visited', 'will visit'], answer: 'visited',
+    explain: '«Last summer» (прошлым летом) — прошлое, нужен Past Simple. visit — правильный глагол: + ed → visited.',
+  },
+  {
+    id: 't6', before: 'I think it', after: 'tomorrow.', options: ['rains', 'rained', 'will rain'], answer: 'will rain',
+    explain: '«Tomorrow» и «I think» (я думаю) — прогноз на будущее, нужен Future Simple: will rain.',
+  },
+  {
+    id: 't7', before: 'He', after: 'his homework two hours ago.', options: ['does', 'did', 'will do'], answer: 'did',
+    explain: '«Two hours ago» (два часа назад) — прошлое. do — неправильный глагол: do → did.',
+  },
+  {
+    id: 't8', before: 'My mum usually', after: 'dinner at 7 p.m.', options: ['cooks', 'cooked', 'will cook'], answer: 'cooks',
+    explain: '«Usually» (обычно) — привычка, это Present Simple. my mum = she, поэтому -s: cooks.',
+  },
+  {
+    id: 't9', before: 'Next year she', after: 'to university.', options: ['goes', 'went', 'will go'], answer: 'will go',
+    explain: '«Next year» (в следующем году) — будущее, нужен Future Simple: will go.',
+  },
 ];
 
 const PRONOUNS = [
@@ -250,6 +274,14 @@ const APOS = [
     explain: 'Children — неправильное множественное число без -s на конце, поэтому добавляем \'s: children\'s.' },
   { id: 'a5', word: 'parents', rest: 'house', pre: 'my', hint: 'дом моих родителей (мамы и папы)', correct: 7, result: "parents'",
     explain: 'Родителей двое — parents (мн. ч. на -s). Апостроф ставим после s: parents\'.' },
+  { id: 'a6', word: 'Kates', rest: 'phone is new.', pre: '', hint: 'телефон Кейт', correct: 4, result: "Kate's",
+    explain: 'Кейт — один человек. К имени добавляем \'s → Kate\'s phone.' },
+  { id: 'a7', word: 'dogs', rest: 'bowl', pre: 'my', hint: 'миска моей собаки (собака одна)', correct: 3, result: "dog's",
+    explain: 'Собака одна — dog. Единственное число: dog + \'s → my dog\'s bowl.' },
+  { id: 'a8', word: 'teachers', rest: 'room', pre: 'the', hint: 'учительская (комната всех учителей)', correct: 8, result: "teachers'",
+    explain: 'Учителей много — teachers уже оканчивается на -s. Ставим только апостроф после s: the teachers\' room.' },
+  { id: 'a9', word: 'mens', rest: 'shoes', pre: 'the', hint: 'мужская обувь (обувь мужчин)', correct: 3, result: "men's",
+    explain: 'men — неправильное множественное число без -s на конце, поэтому добавляем \'s: the men\'s shoes.' },
 ];
 
 

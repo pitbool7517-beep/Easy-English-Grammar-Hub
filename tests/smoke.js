@@ -63,6 +63,22 @@ async function routeLibraries(page, { breakCdn = false } = {}) {
   }
   check('All sections open without errors', errors.length === 0, errors.join(' | '));
 
+  // 2a. Tenses mini-test: 9 questions
+  await page.click('aside >> text=Времена глаголов');
+  const tenseScope = 'main section:has-text("Мини-тест: выберите правильное время")';
+  for (const a of ['went', 'drinks', 'will call', 'play', 'visited', 'will rain', 'did', 'cooks', 'will go']) {
+    await page.locator(`${tenseScope} button:text-is("${a}"):not([disabled])`).first().click();
+  }
+  // 2b. Apostrophe: 9 tasks, click the correct gap in each task
+  await page.click('aside >> text=Притяжательный падеж');
+  const aposTasks = page.locator('main div.border-t').filter({ has: page.locator('button[aria-label^="Поставить апостроф"]') });
+  const gaps = [3, 4, 5, 8, 7, 4, 3, 8, 3];
+  check('Apostrophe: 9 tasks shown', (await aposTasks.count()) === 9, `${await aposTasks.count()}`);
+  for (let i = 0; i < gaps.length; i++) await aposTasks.nth(i).locator(`button[aria-label="Поставить апостроф после буквы ${gaps[i]}"]`).click();
+  const early = JSON.parse(await page.evaluate(() => localStorage.getItem('eegh-progress-v1')) || '{}');
+  check('Tenses: all 9 answers counted', Object.keys(early).filter((k) => /^t\d+$/.test(k)).length === 9);
+  check('Apostrophe: all 9 answers counted', Object.keys(early).filter((k) => /^a\d+$/.test(k)).length === 9);
+
   // 2. Articles: answer every question correctly
   await page.click('aside >> text=Артикли A / AN');
   const answer = async (text, scope = 'main') => page.locator(`${scope} button:text-is("${text}"):not([disabled])`).first().click();
@@ -95,7 +111,7 @@ async function routeLibraries(page, { breakCdn = false } = {}) {
   // 4. Shuffle keeps progress
   await page.click('main >> text=Перемешать и пройти заново');
   const after = Object.keys(JSON.parse(await page.evaluate(() => localStorage.getItem('eegh-progress-v1')))).length;
-  check('Shuffle does not erase progress', after === artIds.length + psIds.length);
+  check('Shuffle does not erase progress', after === artIds.length + psIds.length + 18);
 
   // 5. Progress survives reload; unknown old ids do not break the counter
   await page.evaluate(() => { const p = JSON.parse(localStorage.getItem('eegh-progress-v1')); p['old-removed-id'] = true; localStorage.setItem('eegh-progress-v1', JSON.stringify(p)); });
