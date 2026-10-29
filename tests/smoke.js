@@ -25,6 +25,7 @@ const server = http.createServer((req, res) => {
 
 const results = [];
 const check = (name, ok, extra = '') => { results.push([ok, name + (extra ? ` (${extra})` : '')]); };
+const progressOf = async (page) => ((JSON.parse(await page.evaluate(() => localStorage.getItem('eegh-data-v2')) || '{}')).progress || {});
 
 async function routeLibraries(page, { breakCdn = false } = {}) {
   // Block all third-party APIs so the test never depends on them.
@@ -57,7 +58,7 @@ async function routeLibraries(page, { breakCdn = false } = {}) {
   const total = Number((header.match(/\/\s*(\d+)/) || [])[1]);
   check('App loads and shows progress counter', total > 0, `total ${total}`);
 
-  for (const label of ['Времена глаголов', 'Глагол TO BE', 'Притяжательный падеж', 'Артикли A / AN', 'Present Simple (+)', 'Проверка текста', 'Произношение', 'Главная']) {
+  for (const label of ['Времена глаголов', 'Глагол TO BE', 'Притяжательный падеж', 'Артикли A / AN', 'Present Simple (+)', 'Проверка текста', 'Произношение', 'Мои данные', 'Главная']) {
     await page.click(`aside >> text=${label}`);
     await page.waitForTimeout(150);
   }
@@ -75,7 +76,7 @@ async function routeLibraries(page, { breakCdn = false } = {}) {
   const gaps = [3, 4, 5, 8, 7, 4, 3, 8, 3];
   check('Apostrophe: 9 tasks shown', (await aposTasks.count()) === 9, `${await aposTasks.count()}`);
   for (let i = 0; i < gaps.length; i++) await aposTasks.nth(i).locator(`button[aria-label="Поставить апостроф после буквы ${gaps[i]}"]`).click();
-  const early = JSON.parse(await page.evaluate(() => localStorage.getItem('eegh-progress-v1')) || '{}');
+  const early = await progressOf(page);
   check('Tenses: all 9 answers counted', Object.keys(early).filter((k) => /^t\d+$/.test(k)).length === 9);
   check('Apostrophe: all 9 answers counted', Object.keys(early).filter((k) => /^a\d+$/.test(k)).length === 9);
 
@@ -89,7 +90,7 @@ async function routeLibraries(page, { breakCdn = false } = {}) {
   const fixTasks = page.locator('main form, main div.border-t').filter({ has: page.locator('button[aria-label$="отметить как ошибку"]') });
   const fixWrong = [0, 0, 0, 0, 1];
   for (let i = 0; i < 5; i++) await fixTasks.nth(i).locator('button[aria-label$="отметить как ошибку"]').nth(fixWrong[i]).click();
-  let stored = JSON.parse(await page.evaluate(() => localStorage.getItem('eegh-progress-v1')) || '{}');
+  let stored = await progressOf(page);
   const artIds = Object.keys(stored).filter((k) => /^a[rzf]\d+$/.test(k));
   check('Articles: all 22 answers counted', artIds.length === 22, `${artIds.length}`);
 
@@ -99,22 +100,22 @@ async function routeLibraries(page, { breakCdn = false } = {}) {
   for (const a of ['lives', 'play', 'watches', 'opens', 'drink', 'goes', 'work', 'studies', 'has', 'cries', 'live', 'plays']) await answer(a, psChoose);
   const typed = { pt1: 'studies', pt2: 'Fixes ', pt3: 'rains', pt4: 'have', pt5: 'does', pt6: 'leaves' };
   await page.fill('#in-pt1', 'studys'); await page.press('#in-pt1', 'Enter');
-  check('Present Simple: wrong typed answer is rejected', !(JSON.parse(await page.evaluate(() => localStorage.getItem('eegh-progress-v1')))).pt1);
+  check('Present Simple: wrong typed answer is rejected', !(await progressOf(page)).pt1);
   for (const [id, v] of Object.entries(typed)) { await page.fill(`#in-${id}`, v); await page.press(`#in-${id}`, 'Enter'); }
   const psFix = page.locator('main div.border-t').filter({ has: page.locator('button[aria-label$="отметить как ошибку"]') });
   const psWrong = [0, 0, 0, 1, 0];
   for (let i = 0; i < 5; i++) await psFix.nth(i).locator('button[aria-label$="отметить как ошибку"]').nth(psWrong[i]).click();
-  stored = JSON.parse(await page.evaluate(() => localStorage.getItem('eegh-progress-v1')) || '{}');
+  stored = await progressOf(page);
   const psIds = Object.keys(stored).filter((k) => /^p[stf]\d+$/.test(k));
   check('Present Simple: all 23 answers counted (case/space tolerant)', psIds.length === 23, `${psIds.length}`);
 
   // 4. Shuffle keeps progress
   await page.click('main >> text=Перемешать и пройти заново');
-  const after = Object.keys(JSON.parse(await page.evaluate(() => localStorage.getItem('eegh-progress-v1')))).length;
+  const after = Object.keys(await progressOf(page)).length;
   check('Shuffle does not erase progress', after === artIds.length + psIds.length + 18);
 
   // 5. Progress survives reload; unknown old ids do not break the counter
-  await page.evaluate(() => { const p = JSON.parse(localStorage.getItem('eegh-progress-v1')); p['old-removed-id'] = true; localStorage.setItem('eegh-progress-v1', JSON.stringify(p)); });
+  await page.evaluate(() => { const d = JSON.parse(localStorage.getItem('eegh-data-v2')); d.progress['old-removed-id'] = { at: null }; localStorage.setItem('eegh-data-v2', JSON.stringify(d)); });
   await page.reload();
   await page.waitForSelector('aside nav');
   const h2 = await page.innerText('header');
@@ -123,17 +124,17 @@ async function routeLibraries(page, { breakCdn = false } = {}) {
   // 6. Reset asks for confirmation
   await page.click('aside >> text=Главная');
   await page.click('main >> text=Сбросить прогресс');
-  const stillThere = Object.keys(JSON.parse(await page.evaluate(() => localStorage.getItem('eegh-progress-v1')))).length;
+  const stillThere = Object.keys(await progressOf(page)).length;
   check('Reset needs confirmation (nothing erased on first click)', stillThere > 0);
   await page.click('main >> text=Отмена');
   await page.click('main >> text=Сбросить прогресс');
   await page.click('main >> text=Да, сбросить');
-  check('Reset after confirmation clears progress', (await page.evaluate(() => localStorage.getItem('eegh-progress-v1'))) === '{}');
+  check('Reset after confirmation clears progress', Object.keys(await progressOf(page)).length === 0);
 
   // 7. Phone width: no horizontal scroll
   await page.setViewportSize({ width: 375, height: 800 });
   const wide = [];
-  for (const label of ['Артикли A / AN', 'Present Simple (+)', 'Главная']) {
+  for (const label of ['Артикли A / AN', 'Present Simple (+)', 'Мои данные', 'Главная']) {
     await page.click('button[aria-label="Открыть меню разделов"]');
     await page.waitForTimeout(350);
     await page.click(`text=${label} >> visible=true`);

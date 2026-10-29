@@ -122,7 +122,7 @@ const Home = icon('Home'), Clock = icon('Clock'), Sparkles = icon('Sparkles'), Q
   SpellCheck = icon('SpellCheck'), Volume2 = icon('Volume2'), Loader2 = icon('Loader2'), Square = icon('Square'),
   Wand2 = icon('Wand2'), AlertTriangle = icon('AlertTriangle'),
   Menu = icon('Menu'), X = icon('X'), Languages = icon('Languages'), PlayCircle = icon('PlayCircle'),
-  TypeIcon = icon('Type'), PenLine = icon('PenLine');
+  TypeIcon = icon('Type'), PenLine = icon('PenLine'), SaveIcon = icon('Save');
 
 /* ---------- Данные ---------- */
 const TENSES = {
@@ -286,11 +286,131 @@ const APOS = [
 
 
 /* ---------- Хранилище прогресса ---------- */
-const STORE_KEY = 'eegh-progress-v1';
-function loadProgress() {
-  try { const raw = localStorage.getItem(STORE_KEY); return raw ? JSON.parse(raw) : {}; } catch (e) { return {}; }
+/* ---------- Хранилище данных (схема v2) ----------
+   Всё хранится в браузере пользователя (localStorage), сервер не используется.
+   eegh-data-v2 — текущие данные:
+     schema   — номер схемы (2)
+     progress — { [taskId]: { at: ISO-дата первого правильного ответа | null } }
+     topics   — свои темы (этап 2)
+     items    — свои слова, выражения, правила (этап 2)
+     reviews  — история повторений (этап 4)
+     settings — настройки
+     meta     — служебное: даты создания, изменения, последней копии
+   eegh-progress-v1 — старый формат { [taskId]: true }. Читается один раз для переноса и НЕ удаляется. */
+const DATA_KEY = 'eegh-data-v2';
+const LEGACY_KEY = 'eegh-progress-v1';
+const SCHEMA = 2;
+const APP_ID = 'easy-english-grammar-hub';
+
+function emptyData() {
+  const now = new Date().toISOString();
+  return { schema: SCHEMA, progress: {}, topics: [], items: [], reviews: [], settings: {}, meta: { createdAt: now, updatedAt: now, lastExportAt: null } };
 }
-function saveProgress(p) { try { localStorage.setItem(STORE_KEY, JSON.stringify(p)); } catch (e) {} }
+
+const isPlainObject = (x) => !!x && typeof x === 'object' && !Array.isArray(x);
+
+// Привести любые данные (v1, v2, импорт) к схеме v2. Возвращает { data, problems }.
+function normalizeData(raw) {
+  const problems = [];
+  const out = emptyData();
+  if (!isPlainObject(raw)) return { data: null, problems: ['Данные не являются объектом.'] };
+  // v1: { t1: true, ... }
+  const looksV1 = !('schema' in raw) && Object.values(raw).every((v) => v === true || v === false);
+  const src = looksV1 ? { progress: raw } : raw;
+  if (!looksV1 && typeof src.schema === 'number' && src.schema > SCHEMA) problems.push(`Файл создан более новой версией приложения (схема ${src.schema}).`);
+  if (isPlainObject(src.progress)) {
+    for (const [id, v] of Object.entries(src.progress)) {
+      if (typeof id !== 'string' || id.length > 64) continue;
+      if (v === true) out.progress[id] = { at: null };
+      else if (isPlainObject(v)) out.progress[id] = { at: typeof v.at === 'string' ? v.at : null };
+    }
+  } else if (src.progress !== undefined) problems.push('Раздел progress повреждён.');
+  for (const key of ['topics', 'items', 'reviews']) {
+    if (Array.isArray(src[key])) out[key] = src[key].filter((x) => isPlainObject(x) && typeof x.id === 'string');
+    else if (src[key] !== undefined) problems.push(`Раздел ${key} повреждён.`);
+  }
+  if (isPlainObject(src.settings)) out.settings = { ...src.settings };
+  if (isPlainObject(src.meta)) out.meta = { ...out.meta, ...src.meta };
+  return { data: out, problems };
+}
+
+// Загрузка при старте. Никогда не затирает то, что не смогла прочитать.
+function loadData() {
+  const status = { migrated: false, recovered: null };
+  let raw = null;
+  try { raw = localStorage.getItem(DATA_KEY); } catch (e) { return { data: emptyData(), status: { ...status, unavailable: true } }; }
+  if (raw) {
+    try {
+      const { data } = normalizeData(JSON.parse(raw));
+      if (data) return { data, status };
+      throw new Error('bad shape');
+    } catch (e) {
+      // Повреждённые данные откладываем в отдельный ключ и начинаем заново (с переносом v1, если он есть)
+      const backupKey = DATA_KEY + '-damaged-' + Date.now();
+      try { localStorage.setItem(backupKey, raw); } catch (err) {}
+      status.recovered = backupKey;
+    }
+  }
+  try {
+    const legacy = localStorage.getItem(LEGACY_KEY);
+    if (legacy) {
+      const { data } = normalizeData(JSON.parse(legacy));
+      if (data) { status.migrated = true; return { data, status }; }
+    }
+  } catch (e) {}
+  return { data: emptyData(), status };
+}
+
+function saveData(data) {
+  try {
+    localStorage.setItem(DATA_KEY, JSON.stringify({ ...data, meta: { ...data.meta, updatedAt: new Date().toISOString() } }));
+    return true;
+  } catch (e) { return false; }
+}
+
+// Объединение: прогресс — по каждому заданию берём более раннюю дату; списки — по id, текущие записи не теряются.
+function mergeData(current, incoming) {
+  const out = { ...current, progress: { ...current.progress } };
+  for (const [id, v] of Object.entries(incoming.progress)) {
+    const cur = out.progress[id];
+    if (!cur) out.progress[id] = v;
+    else if (v.at && (!cur.at || v.at < cur.at)) out.progress[id] = v;
+  }
+  for (const key of ['topics', 'items', 'reviews']) {
+    const ids = new Set(current[key].map((x) => x.id));
+    out[key] = [...current[key], ...incoming[key].filter((x) => !ids.has(x.id))];
+  }
+  out.settings = { ...incoming.settings, ...current.settings };
+  return out;
+}
+
+function buildExport(data) {
+  return { app: APP_ID, schema: SCHEMA, exportedAt: new Date().toISOString(), data };
+}
+
+// Разбор файла импорта. Принимает экспорт v2, «голые» данные v2 и старый формат v1.
+function parseImport(text) {
+  let json;
+  try { json = JSON.parse(text); } catch (e) { return { error: 'Это не файл резервной копии: содержимое не читается как JSON.' }; }
+  if (!isPlainObject(json)) return { error: 'Это не файл резервной копии Easy English.' };
+  let body = json, exportedAt = null;
+  if ('app' in json || 'data' in json) {
+    if (json.app !== APP_ID) return { error: 'Файл создан другим приложением.' };
+    if (!isPlainObject(json.data)) return { error: 'В файле нет данных.' };
+    body = json.data; exportedAt = typeof json.exportedAt === 'string' ? json.exportedAt : null;
+  }
+  const { data, problems } = normalizeData(body);
+  if (!data) return { error: problems[0] || 'Файл повреждён.' };
+  const known = new Set(ALL_QUIZ_IDS);
+  return {
+    data, exportedAt, problems,
+    summary: {
+      solved: Object.keys(data.progress).filter((id) => known.has(id)).length,
+      unknown: Object.keys(data.progress).filter((id) => !known.has(id)).length,
+      topics: data.topics.length, items: data.items.length, reviews: data.reviews.length,
+    },
+  };
+}
 
 /* ---------- Мелкие компоненты ---------- */
 const tone = {
@@ -375,7 +495,7 @@ function ChoiceQuestion({ q, index, options, solved, onCorrect }) {
 }
 
 /* ---------- Главная ---------- */
-function HomeView({ progress, go, reset }) {
+function HomeView({ progress, go, reset, lastExportAt }) {
   const correct = countSolved(progress);
   const [confirmReset, setConfirmReset] = useState(false);
   const pct = Math.round((correct / TOTAL) * 100);
@@ -427,6 +547,11 @@ function HomeView({ progress, go, reset }) {
           </div>
           <p className="mt-3 font-medium flex items-center gap-2"><Trophy size={18} className="text-amber" /> Правильных ответов: <span className="tnum">{pct}%</span></p>
           <p className="text-sm text-muted mt-1">{correct === TOTAL ? 'Отлично, все задания выполнены!' : correct === 0 ? 'Пока нет ответов — самое время начать.' : 'Хороший темп, продолжайте!'}</p>
+          {correct > 0 && (
+            <button onClick={() => go('data')} className="mt-3 text-sm text-indigo inline-flex items-center gap-1.5 hover:underline">
+              <SaveIcon size={14} /> {lastExportAt ? `Копия от ${new Date(lastExportAt).toLocaleDateString('ru-RU')}. Сохранить новую` : 'Сохранить копию прогресса'}
+            </button>
+          )}
           {correct > 0 && !confirmReset && (
             <button onClick={() => setConfirmReset(true)} className="mt-3 text-sm text-muted inline-flex items-center gap-1.5 hover:text-ink transition-colors">
               <RotateCcw size={14} /> Сбросить прогресс
@@ -1226,6 +1351,179 @@ const ALL_QUIZ_IDS = [...TENSE_QUIZ, ...TOBE_QUIZ, ...APOS, ...AAN_QUIZ, ...ZERO
 const TOTAL = ALL_QUIZ_IDS.length;
 // Считаем только задания, которые есть в приложении сейчас (старые записи не ломают счётчик)
 function countSolved(progress) { return ALL_QUIZ_IDS.filter((id) => progress[id]).length; }
+
+/* ---------- Мои данные: резервная копия ---------- */
+function fmtDate(iso) {
+  if (!iso) return '';
+  try { return new Date(iso).toLocaleString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (e) { return iso; }
+}
+function plural(n, one, few, many) {
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+  return many;
+}
+
+// Сохранить файл: в Claude-артефакте через разрешение «downloads», на сайте — обычной загрузкой
+async function saveTextFile(filename, text) {
+  if (window.claude && typeof window.claude.use === 'function') {
+    const dl = await window.claude.use('downloads');
+    if (dl) {
+      try { await dl.save({ filename, data: text }); return 'saved'; }
+      catch (e) { if (e && e.code === 'declined') return 'declined'; throw e; }
+    }
+  }
+  const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.rel = 'noopener';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  return 'saved';
+}
+
+function DataView({ data, setData, storageNote }) {
+  const [persisted, setPersisted] = useState(null);
+  const [msg, setMsg] = useState(null); // {ok, text}
+  const [pending, setPending] = useState(null); // результат parseImport
+  const [busy, setBusy] = useState(false);
+  const fileRef = React.useRef(null);
+  const solved = countSolved(data.progress);
+
+  useEffect(() => {
+    try { if (navigator.storage && navigator.storage.persisted) navigator.storage.persisted().then(setPersisted).catch(() => setPersisted(null)); } catch (e) {}
+  }, []);
+
+  const doExport = async () => {
+    setBusy(true); setMsg(null);
+    const now = new Date();
+    const name = `easy-english-backup-${now.toISOString().slice(0, 10)}.json`;
+    try {
+      const text = JSON.stringify(buildExport(data), null, 2);
+      const r = await saveTextFile(name, text);
+      if (r === 'saved') {
+        setData((d) => ({ ...d, meta: { ...d.meta, lastExportAt: now.toISOString() } }));
+        setMsg({ ok: true, text: `Копия сохранена: ${name}. Храните файл в надёжном месте, например в облаке.` });
+      } else setMsg({ ok: false, text: 'Сохранение отменено.' });
+    } catch (e) {
+      setMsg({ ok: false, text: 'Не удалось сохранить файл. Попробуйте ещё раз или откройте сайт в другом браузере.' });
+    } finally { setBusy(false); }
+  };
+
+  const onFile = (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    setMsg(null); setPending(null);
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { setMsg({ ok: false, text: 'Файл слишком большой (больше 5 МБ). Это не похоже на копию Easy English.' }); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const r = parseImport(String(reader.result || ''));
+      if (r.error) setMsg({ ok: false, text: r.error });
+      else setPending({ ...r, fileName: file.name });
+    };
+    reader.onerror = () => setMsg({ ok: false, text: 'Не удалось прочитать файл.' });
+    reader.readAsText(file);
+  };
+
+  const applyImport = (mode) => {
+    if (!pending) return;
+    // Перед любым импортом сохраняем текущее состояние в отдельный ключ — его можно вернуть
+    try { localStorage.setItem(DATA_KEY + '-before-import', JSON.stringify(data)); } catch (e) {}
+    const next = mode === 'replace'
+      ? { ...pending.data, meta: { ...pending.data.meta, lastExportAt: data.meta.lastExportAt } }
+      : mergeData(data, pending.data);
+    setData(next);
+    const n = countSolved(next.progress);
+    setMsg({ ok: true, text: `${mode === 'replace' ? 'Данные заменены' : 'Данные объединены'}. Решено заданий: ${n} из ${TOTAL}.` });
+    setPending(null);
+  };
+
+  const undoImport = () => {
+    try {
+      const raw = localStorage.getItem(DATA_KEY + '-before-import');
+      const { data: prev } = normalizeData(JSON.parse(raw));
+      if (prev) { setData(prev); setMsg({ ok: true, text: 'Вернули данные, которые были до импорта.' }); }
+    } catch (e) { setMsg({ ok: false, text: 'Нечего возвращать.' }); }
+  };
+  let hasUndo = false;
+  try { hasUndo = !!localStorage.getItem(DATA_KEY + '-before-import'); } catch (e) {}
+
+  const last = data.meta.lastExportAt;
+  const daysSince = last ? Math.floor((Date.now() - new Date(last).getTime()) / 86400000) : null;
+
+  return (
+    <div className="fade-in space-y-6">
+      <SectionTitle eyebrow="Данные" title="Мои данные">Прогресс хранится только в этом браузере. Сохраняйте копию в файл, чтобы не потерять его и чтобы перенести на другое устройство.</SectionTitle>
+
+      {storageNote && (
+        <div className="flex gap-2 items-start rounded-xl px-4 py-3 text-sm bg-amberSoft">
+          <AlertTriangle size={17} className="text-amber shrink-0 mt-0.5" /> <span>{storageNote}</span>
+        </div>
+      )}
+
+      <Panel>
+        <h3 className="font-display text-xl font-semibold">Что сохранено в этом браузере</h3>
+        <dl className="mt-4 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl bg-surface2 p-3"><dt className="text-xs text-muted">Решено заданий</dt><dd className="font-display text-2xl font-semibold tnum">{solved} <span className="text-base text-muted">из {TOTAL}</span></dd></div>
+          <div className="rounded-xl bg-surface2 p-3"><dt className="text-xs text-muted">Свои карточки и темы</dt><dd className="font-display text-2xl font-semibold tnum">{data.items.length} <span className="text-base text-muted">/ {data.topics.length}</span></dd></div>
+          <div className="rounded-xl bg-surface2 p-3"><dt className="text-xs text-muted">Последняя копия</dt><dd className="text-sm font-medium mt-1">{last ? fmtDate(last) : 'ещё не сохраняли'}</dd></div>
+        </dl>
+        <p className="text-sm text-muted mt-3">
+          {persisted === true ? 'Браузер обещал не удалять данные сайта сам.' : persisted === false ? 'Браузер может удалить данные сайта при нехватке места или если сайт долго не открывать. Сохраняйте копию.' : 'Данные лежат в хранилище браузера (localStorage).'}
+          {' '}Свои карточки и темы появятся на следующем этапе.
+        </p>
+      </Panel>
+
+      <Panel>
+        <h3 className="font-display text-xl font-semibold flex items-center gap-2"><ArrowRight size={19} className="text-green rotate-90" /> Сохранить копию</h3>
+        <p className="text-sm text-muted mt-1">Скачивается файл <span className="font-mono">.json</span> со всем прогрессом. Его можно открыть на другом устройстве через «Загрузить из файла».</p>
+        {daysSince !== null && daysSince >= 14 && <p className="text-sm text-amber mt-2">Последней копии уже {daysSince} {plural(daysSince, 'день', 'дня', 'дней')}.</p>}
+        <button onClick={doExport} disabled={busy}
+          className="mt-4 inline-flex items-center gap-2 bg-indigo text-surface px-5 py-2.5 rounded-xl font-medium transition-transform duration-200 hover:-translate-y-0.5 disabled:opacity-60">
+          {busy ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle2 size={18} />} Скачать копию
+        </button>
+      </Panel>
+
+      <Panel>
+        <h3 className="font-display text-xl font-semibold flex items-center gap-2"><ArrowRight size={19} className="text-blue -rotate-90" /> Загрузить из файла</h3>
+        <p className="text-sm text-muted mt-1">Выберите файл копии. Перед изменениями приложение покажет, что в нём, и спросит, что сделать.</p>
+        <input ref={fileRef} id="import-file" type="file" accept=".json,application/json" onChange={onFile} className="sr-only" />
+        <button onClick={() => fileRef.current && fileRef.current.click()}
+          className="mt-4 inline-flex items-center gap-2 border-2 border-line px-5 py-2.5 rounded-xl font-medium transition-colors hover:border-indigo">
+          Выбрать файл…
+        </button>
+
+        {pending && (
+          <div className="fade-in mt-4 rounded-2xl border-2 border-indigo bg-indigoSoft p-4" role="region" aria-label="Предпросмотр импорта">
+            <p className="font-medium">Файл «{pending.fileName}»{pending.exportedAt ? `, копия от ${fmtDate(pending.exportedAt)}` : ''}</p>
+            <ul className="text-sm mt-2 space-y-0.5">
+              <li>Решено заданий: <b className="tnum">{pending.summary.solved}</b></li>
+              <li>Своих карточек: <b className="tnum">{pending.summary.items}</b>, тем: <b className="tnum">{pending.summary.topics}</b></li>
+              {pending.summary.unknown > 0 && <li className="text-muted">Записей о заданиях, которых больше нет в приложении: {pending.summary.unknown} (сохранятся, но не считаются)</li>}
+            </ul>
+            {pending.problems.length > 0 && <p className="text-sm text-amber mt-2">{pending.problems.join(' ')}</p>}
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              <button onClick={() => applyImport('merge')} className="text-left rounded-xl bg-surface border-2 border-green p-3 transition-transform hover:-translate-y-0.5">
+                <span className="block font-medium text-green">Объединить</span>
+                <span className="block text-xs text-muted mt-0.5">Добавить из файла то, чего здесь нет. Ничего не удаляется.</span>
+              </button>
+              <button onClick={() => applyImport('replace')} className="text-left rounded-xl bg-surface border-2 border-red p-3 transition-transform hover:-translate-y-0.5">
+                <span className="block font-medium text-red">Заменить</span>
+                <span className="block text-xs text-muted mt-0.5">Сделать всё как в файле. Текущий прогресс ({solved}) заменится.</span>
+              </button>
+            </div>
+            <button onClick={() => setPending(null)} className="mt-3 text-sm text-muted hover:text-ink">Отмена</button>
+          </div>
+        )}
+        {hasUndo && !pending && (
+          <p className="text-sm text-muted mt-4">После последнего импорта сохранено прежнее состояние. <button onClick={undoImport} className="text-indigo underline">Вернуть как было</button></p>
+        )}
+      </Panel>
+
+      {msg && <Feedback ok={msg.ok} text={msg.text} />}
+    </div>
+  );
+}
 
 /* ---------- Проверка текста ---------- */
 const CHECK_SAMPLE = 'Yesterday I go to the park with my friend. He have a dog. The dog are very funny and we was happy. Do you likes dogs?';
@@ -2465,6 +2763,9 @@ const NAV_GROUPS = [
     { key: 'checker', label: 'Проверка текста', icon: SpellCheck },
     { key: 'pronounce', label: 'Произношение', icon: Volume2 },
   ] },
+  { title: 'Данные', items: [
+    { key: 'data', label: 'Мои данные', icon: SaveIcon },
+  ] },
 ];
 const NAV = NAV_GROUPS.flatMap((g) => g.items);
 
@@ -2520,10 +2821,13 @@ function AudienceBadge() {
 
 function App() {
   const [view, setView] = useState('home');
-  const [progress, setProgress] = useState(loadProgress);
+  const [boot] = useState(loadData);
+  const [data, setData] = useState(boot.data);
+  const progress = data.progress;
+  const [saveFailed, setSaveFailed] = useState(false);
   const [toast, setToast] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  useEffect(() => { saveProgress(progress); }, [progress]);
+  useEffect(() => { setSaveFailed(!saveData(data)); }, [data]);
   useEffect(() => {
     window.__eeghMounted = true;
     // Попросить браузер не удалять данные сайта при нехватке места
@@ -2544,9 +2848,14 @@ function App() {
   const onCorrect = (id) => {
     if (progress[id]) return;
     setToast('+1 к прогрессу');
-    setProgress((p) => (p[id] ? p : { ...p, [id]: true }));
+    setData((d) => (d.progress[id] ? d : { ...d, progress: { ...d.progress, [id]: { at: new Date().toISOString() } } }));
   };
   const go = (k) => { setView(k); setMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const storageNote = boot.status.unavailable || saveFailed
+    ? 'Браузер не даёт сохранять данные (например, в приватном режиме или при нехватке места). Ответы засчитываются, но после закрытия страницы пропадут. Сохраните копию в файл.'
+    : boot.status.recovered
+      ? 'Сохранённые данные оказались повреждены. Мы отложили их в отдельную запись и начали заново. Если у вас есть файл копии, загрузите его.'
+      : '';
   const correct = countSolved(progress);
   const current = NAV.find((n) => n.key === view);
   const group = NAV_GROUPS.find((g) => g.items.some((i) => i.key === view));
@@ -2592,7 +2901,13 @@ function App() {
           </div>
         </aside>
         <main className="py-8 min-w-0">
-          {view === 'home' && <HomeView progress={progress} go={go} reset={() => setProgress({})} />}
+          {storageNote && view !== 'data' && (
+            <button onClick={() => go('data')} className="mb-6 w-full text-left flex gap-2 items-start rounded-xl px-4 py-3 text-sm bg-amberSoft">
+              <AlertTriangle size={17} className="text-amber shrink-0 mt-0.5" /> <span>{storageNote} <span className="underline">Открыть «Мои данные»</span></span>
+            </button>
+          )}
+          {view === 'home' && <HomeView progress={progress} go={go} reset={() => setData((d) => ({ ...d, progress: {} }))} lastExportAt={data.meta.lastExportAt} />}
+          {view === 'data' && <DataView data={data} setData={setData} storageNote={storageNote} />}
           {view === 'tenses' && <TensesView progress={progress} onCorrect={onCorrect} />}
           {view === 'tobe' && <ToBeView progress={progress} onCorrect={onCorrect} />}
           {view === 'possessive' && <PossessiveView progress={progress} onCorrect={onCorrect} />}
