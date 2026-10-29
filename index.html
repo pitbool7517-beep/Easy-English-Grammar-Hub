@@ -122,7 +122,7 @@ const Home = icon('Home'), Clock = icon('Clock'), Sparkles = icon('Sparkles'), Q
   SpellCheck = icon('SpellCheck'), Volume2 = icon('Volume2'), Loader2 = icon('Loader2'), Square = icon('Square'),
   Wand2 = icon('Wand2'), AlertTriangle = icon('AlertTriangle'),
   Menu = icon('Menu'), X = icon('X'), Languages = icon('Languages'), PlayCircle = icon('PlayCircle'),
-  TypeIcon = icon('Type'), PenLine = icon('PenLine'), SaveIcon = icon('Save'), Library = icon('Library');
+  TypeIcon = icon('Type'), PenLine = icon('PenLine'), SaveIcon = icon('Save'), Library = icon('Library'), RepeatIcon = icon('Repeat');
 
 /* ---------- Данные ---------- */
 const TENSES = {
@@ -582,14 +582,15 @@ function HomeView({ progress, go, reset, lastExportAt, itemsCount }) {
           </button>
         ))}
       </div>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2">
         {[
-          { key: 'base', title: 'Моя база', desc: itemsCount ? `Ваших карточек: ${itemsCount}. Добавляйте слова, выражения и правила по темам` : 'Добавляйте свои слова, выражения и правила по темам', icon: Library, wide: true },
+          { key: 'review', title: 'Повторение', desc: itemsCount ? `Занятие на 5–15 минут по вашим ${itemsCount} ${plural(itemsCount, 'карточке', 'карточкам', 'карточкам')}` : 'Короткие занятия по вашим карточкам', icon: RepeatIcon },
+          { key: 'base', title: 'Моя база', desc: itemsCount ? `Ваших карточек: ${itemsCount}. Добавляйте слова, выражения и правила по темам` : 'Добавляйте свои слова, выражения и правила по темам', icon: Library },
           { key: 'checker', title: 'Проверка текста', desc: 'Напишите текст — тренажёр найдёт ошибки и объяснит правила', icon: SpellCheck },
           { key: 'pronounce', title: 'Произношение', desc: 'Введите слово и послушайте, как оно звучит', icon: Volume2 },
-        ].map(({ key, title, desc, icon: Ic, wide }) => (
+        ].map(({ key, title, desc, icon: Ic }) => (
           <button key={key} onClick={() => go(key)}
-            className={`text-left bg-surface border border-line rounded-2xl p-5 flex gap-4 items-start transition-all duration-200 hover:-translate-y-1 hover:border-indigo ${wide ? 'sm:col-span-2 lg:col-span-1' : ''}`}>
+            className="text-left bg-surface border border-line rounded-2xl p-5 flex gap-4 items-start transition-all duration-200 hover:-translate-y-1 hover:border-indigo">
             <span className="inline-flex w-10 h-10 shrink-0 rounded-xl items-center justify-center bg-amberSoft text-amber"><Ic size={20} /></span>
             <span className="min-w-0">
               <span className="block font-display text-xl font-semibold">{title}</span>
@@ -1750,6 +1751,413 @@ function MyBaseView({ data, setData }) {
           </ul>
         )}
         {filtered.length > limit && <button onClick={() => setLimit((l) => l + 100)} className="px-4 py-2 rounded-xl border-2 border-line hover:border-indigo">Показать ещё</button>}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Повторение: короткие сессии по своей базе ---------- */
+// Проверка введённого ответа. Возвращает 'ok' | 'typo' | 'wrong'.
+const LEADING_WORDS = /^(a|an|the|to)\s+/;
+function answerKey(s) {
+  return String(s || '').toLowerCase()
+    .replace(/[’`´]/g, "'")
+    .replace(/\([^)]*\)/g, ' ')            // пояснения в скобках не обязательны
+    .replace(/[.,!?;:"«»“”…]/g, ' ')
+    .replace(/'/g, '')
+    .replace(/\s+/g, ' ').trim()
+    .replace(LEADING_WORDS, '');
+}
+function answerVariants(expected) {
+  return String(expected || '').split(/\s*[\/;,]\s*|\s+or\s+/i).map(answerKey).filter(Boolean);
+}
+function checkAnswer(given, expected) {
+  const g = answerKey(given);
+  if (!g) return 'wrong';
+  const variants = answerVariants(expected);
+  const whole = answerKey(expected);
+  if (whole && !variants.includes(whole)) variants.push(whole);
+  if (variants.includes(g)) return 'ok';
+  for (const v of variants) {
+    const allowed = v.length >= 8 ? 2 : v.length >= 4 ? 1 : 0;
+    if (allowed && editDistance(g, v) <= allowed) return 'typo';
+  }
+  return 'wrong';
+}
+if (typeof window !== 'undefined') window.__eeghTest = { checkAnswer, answerKey };
+
+const REVIEW_LIMIT = 5000;
+const SAMPLE_WORDS = [
+  ['apple', 'яблоко', 'I eat an apple every day.'], ['breakfast', 'завтрак', 'We have breakfast at eight.'], ['tired', 'уставший', 'I am tired after work.'],
+  ['library', 'библиотека', 'She studies at the library.'], ['weather', 'погода', 'The weather is cold today.'], ['answer', 'ответ', 'I know the answer.'],
+  ['tomorrow', 'завтра', 'See you tomorrow!'], ['busy', 'занятой', 'He is very busy.'], ['daughter', 'дочь', 'Her daughter is five.'],
+  ['take a break', 'сделать перерыв', "Let's take a break."], ['be late', 'опаздывать', "Don't be late!"], ['look for', 'искать', 'I am looking for my keys.'],
+];
+
+const LENGTHS = [
+  { key: 'n10', label: '10 карточек', cards: 10 }, { key: 'n20', label: '20 карточек', cards: 20 },
+  { key: 't5', label: '5 минут', minutes: 5 }, { key: 't10', label: '10 минут', minutes: 10 }, { key: 't15', label: '15 минут', minutes: 15 },
+];
+const MODES = [
+  { key: 'mix', label: 'Смешанный', desc: 'Все виды заданий вперемешку' },
+  { key: 'ru2en', label: 'Вспомнить по-английски', desc: 'Видите перевод — пишете английский' },
+  { key: 'en2ru', label: 'Вспомнить перевод', desc: 'Видите английский — вспоминаете и оцениваете себя' },
+  { key: 'cloze', label: 'Вставить в пример', desc: 'Пропуск в вашем примере (нужен пример в карточке)' },
+];
+
+function clozeOf(item) {
+  if (item.type === 'rule' || !item.note || !item.en) return null;
+  const esc = item.en.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp('(^|[^A-Za-z])(' + esc + ')(?=[^A-Za-z]|$)', 'i');
+  const m = item.note.match(re);
+  if (!m) return null;
+  const at = m.index + m[1].length;
+  return { before: item.note.slice(0, at), after: item.note.slice(at + m[2].length), answer: m[2] };
+}
+
+function pickMode(item, mode) {
+  if (item.type === 'rule') return 'self';
+  if (mode === 'en2ru') return 'en2ru';
+  if (mode === 'ru2en') return 'ru2en';
+  if (mode === 'cloze') return clozeOf(item) ? 'cloze' : 'ru2en';
+  const options = ['ru2en', 'en2ru', 'ru2en'];
+  if (clozeOf(item)) options.push('cloze', 'cloze');
+  return options[Math.floor(Math.random() * options.length)];
+}
+
+function lastSeenMap(reviews) {
+  const m = {};
+  for (const r of reviews) if (!m[r.itemId] || r.at > m[r.itemId]) m[r.itemId] = r.at;
+  return m;
+}
+
+// Порядок: сначала карточки, которые давно (или никогда) не повторяли, внутри — случайно
+function buildQueue(pool, reviews, count) {
+  const seen = lastSeenMap(reviews);
+  const withKey = shuffled(pool).map((i) => ({ i, k: seen[i.id] || '' }));
+  withKey.sort((a, b) => (a.k < b.k ? -1 : a.k > b.k ? 1 : 0));
+  const ordered = withKey.map((x) => x.i);
+  if (count <= ordered.length) return ordered.slice(0, count);
+  const out = [...ordered];
+  while (out.length < count) out.push(...shuffled(pool));
+  return out.slice(0, count);
+}
+
+function fmtClock(ms) {
+  const s = Math.max(0, Math.ceil(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+function ReviewCard({ step, onResult, onNext, answered }) {
+  const { item, mode } = step;
+  const [value, setValue] = useState('');
+  const [revealed, setRevealed] = useState(false);
+  const inputRef = React.useRef(null);
+  const nextRef = React.useRef(null);
+  const cloze = mode === 'cloze' ? clozeOf(item) : null;
+  const expected = mode === 'cloze' ? cloze.answer : item.en;
+
+  useEffect(() => { if (inputRef.current) inputRef.current.focus(); }, []);
+  useEffect(() => { if (answered && nextRef.current) nextRef.current.focus(); }, [answered]);
+
+  const submit = (e) => {
+    e.preventDefault();
+    if (answered) { onNext(); return; }
+    if (!value.trim()) return;
+    onResult(checkAnswer(value, expected), value.trim());
+  };
+
+  const prompt = {
+    ru2en: 'Как это по-английски?', en2ru: 'Что это значит?', cloze: 'Вставьте пропущенное слово', self: 'Вспомните правило и пример',
+  }[mode];
+
+  const Back = () => (
+    <div className="fade-in mt-4 rounded-2xl bg-surface2 border border-line p-4">
+      {item.type === 'rule'
+        ? <>{item.en && <p className="text-lg font-medium text-indigo" lang="en">{item.en}</p>}{item.note && <p className="mt-1">{item.note}</p>}</>
+        : <>
+            <p className="flex flex-wrap items-center gap-2">
+              <span className="text-xl font-semibold" lang="en">{item.en}</span>
+              {item.ipa && <span className="text-muted">{item.ipa}</span>}
+              <button type="button" onClick={() => sayEnglish(item.en)} aria-label="Послушать" className="w-8 h-8 rounded-lg inline-flex items-center justify-center hover:bg-surface text-muted"><Volume2 size={16} /></button>
+            </p>
+            <p className="mt-0.5">{item.ru}</p>
+            {item.note && <p className="text-sm text-muted mt-1" lang="en">{item.note}</p>}
+          </>}
+    </div>
+  );
+
+  return (
+    <div>
+      <p className="text-sm text-muted">{prompt}</p>
+      {mode === 'ru2en' && <p className="mt-2 font-display text-3xl font-semibold break-words">{item.ru}</p>}
+      {mode === 'en2ru' && (
+        <p className="mt-2 flex flex-wrap items-center gap-2">
+          <span className="font-display text-3xl font-semibold break-words" lang="en">{item.en}</span>
+          <button type="button" onClick={() => sayEnglish(item.en)} aria-label="Послушать" className="w-9 h-9 rounded-lg inline-flex items-center justify-center hover:bg-surface2 text-muted"><Volume2 size={18} /></button>
+        </p>
+      )}
+      {mode === 'self' && <p className="mt-2 font-display text-2xl font-semibold break-words">{item.ru}</p>}
+      {mode === 'cloze' && (
+        <>
+          <p className="mt-2 text-2xl leading-relaxed break-words" lang="en">{cloze.before}<span className="inline-block min-w-[4rem] border-b-2 border-indigo mx-1 text-center text-indigo">{answered ? cloze.answer : '…'}</span>{cloze.after}</p>
+          <p className="text-sm text-muted mt-1">Подсказка: {item.ru}</p>
+        </>
+      )}
+
+      {(mode === 'ru2en' || mode === 'cloze') && (
+        <form onSubmit={submit} className="mt-4 flex flex-col sm:flex-row gap-2">
+          <label htmlFor="review-answer" className="sr-only">Ваш ответ</label>
+          <input id="review-answer" ref={inputRef} value={value} disabled={!!answered} onChange={(e) => setValue(e.target.value)} autoComplete="off" autoCapitalize="off" spellCheck="false" lang="en"
+            placeholder="Ответ по-английски"
+            className={`flex-1 min-w-0 rounded-xl border-2 bg-surface2 px-4 py-3 text-xl outline-none transition-colors focus:border-indigo ${answered ? (answered === 'wrong' ? 'border-red' : answered === 'typo' ? 'border-amber' : 'border-green') : 'border-line'}`} />
+          {!answered && <button type="submit" className="px-6 py-3 rounded-xl bg-indigo text-surface font-medium">Проверить</button>}
+          {!answered && <button type="button" onClick={() => onResult('wrong', '')} className="px-4 py-3 rounded-xl border-2 border-line text-muted hover:border-indigo">Не помню</button>}
+        </form>
+      )}
+
+      {(mode === 'en2ru' || mode === 'self') && !answered && (
+        !revealed
+          ? <button ref={inputRef} onClick={() => setRevealed(true)} className="mt-5 px-6 py-3 rounded-xl bg-indigo text-surface font-medium">Показать ответ</button>
+          : <>
+              <Back />
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button onClick={() => onResult('self-ok')} className="px-5 py-2.5 rounded-xl bg-green text-surface font-medium">Знал</button>
+                <button onClick={() => onResult('self-wrong')} className="px-5 py-2.5 rounded-xl bg-red text-surface font-medium">Не знал</button>
+              </div>
+            </>
+      )}
+
+      {answered && (
+        <>
+          {(mode === 'ru2en' || mode === 'cloze') && (
+            <div className={`fade-in mt-3 rounded-xl px-3 py-2.5 text-sm flex gap-2 items-start ${answered === 'ok' ? 'bg-greenSoft' : answered === 'typo' ? 'bg-amberSoft' : 'bg-redSoft'}`}>
+              {answered === 'wrong' ? <XCircle size={18} className="text-red shrink-0" /> : <CheckCircle2 size={18} className={answered === 'ok' ? 'text-green shrink-0' : 'text-amber shrink-0'} />}
+              <span>{answered === 'ok' ? 'Верно!' : answered === 'typo' ? <>Почти верно, есть опечатка. Правильно: <b lang="en">{expected}</b></> : <>Правильный ответ: <b lang="en">{expected}</b>. Эта карточка ещё раз появится в конце.</>}</span>
+            </div>
+          )}
+          {(mode === 'ru2en' || mode === 'cloze' || mode === 'en2ru') && <Back />}
+          {mode === 'self' && answered === 'self-wrong' && <p className="mt-3 text-sm text-muted">Карточка ещё раз появится в конце.</p>}
+          <button ref={nextRef} onClick={onNext} className="mt-4 inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-indigo text-surface font-medium">Дальше <ArrowRight size={18} /></button>
+        </>
+      )}
+    </div>
+  );
+}
+
+function ReviewView({ data, setData, go }) {
+  const { topics, items, reviews } = data;
+  const saved = (data.settings && data.settings.review) || {};
+  const [sel, setSel] = useState(() => (Array.isArray(saved.topics) ? saved.topics : ['all']));
+  const [mode, setMode] = useState(saved.mode || 'mix');
+  const [length, setLength] = useState(saved.length || 'n10');
+  const [withRules, setWithRules] = useState(saved.withRules !== false);
+  const [session, setSession] = useState(null); // { queue, pos, startedAt, endsAt, results, requeued }
+  const [answered, setAnswered] = useState(null);
+  const [nowTs, setNowTs] = useState(Date.now());
+
+  const validTopicIds = new Set(topics.map((t) => t.id));
+  const inSelection = (i) => sel.includes('all')
+    || (sel.includes(NO_TOPIC) && (!i.topicId || !validTopicIds.has(i.topicId)))
+    || (i.topicId && sel.includes(i.topicId));
+  const pool = items.filter((i) => inSelection(i) && (withRules || i.type !== 'rule') && (mode !== 'cloze' || i.type === 'rule' || clozeOf(i)));
+  const clozeCount = items.filter((i) => inSelection(i) && clozeOf(i)).length;
+
+  useEffect(() => {
+    if (!session || !session.endsAt) return;
+    const t = setInterval(() => setNowTs(Date.now()), 500);
+    return () => clearInterval(t);
+  }, [session && session.endsAt]);
+
+  const toggleTopic = (id) => {
+    setSel((cur) => {
+      if (id === 'all') return ['all'];
+      const base = cur.filter((x) => x !== 'all');
+      const next = base.includes(id) ? base.filter((x) => x !== id) : [...base, id];
+      return next.length ? next : ['all'];
+    });
+  };
+
+  const start = (customPool) => {
+    const L = LENGTHS.find((l) => l.key === length) || LENGTHS[0];
+    const src = customPool || pool;
+    if (!src.length) return;
+    const count = L.cards ? Math.min(L.cards, src.length) : Math.max(src.length, 30);
+    const queue = buildQueue(src, reviews, count).map((item) => ({ item, mode: pickMode(item, mode) }));
+    setData((d) => ({ ...d, settings: { ...d.settings, review: { topics: sel, mode, length, withRules } } }));
+    setSession({ queue, pos: 0, startedAt: Date.now(), endsAt: L.minutes ? Date.now() + L.minutes * 60000 : null, timeMode: !!L.minutes, results: [], requeued: {} });
+    setAnswered(null);
+    setNowTs(Date.now());
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const record = (result, given) => {
+    if (!session || answered) return;
+    const step = session.queue[session.pos];
+    const entry = { id: newId('r'), itemId: step.item.id, at: new Date().toISOString(), mode: step.mode, result };
+    setData((d) => ({ ...d, reviews: [...d.reviews, entry].slice(-REVIEW_LIMIT) }));
+    const bad = result === 'wrong' || result === 'self-wrong';
+    setSession((s) => {
+      const queue = [...s.queue];
+      const requeued = { ...s.requeued };
+      if (bad && !requeued[step.item.id]) { requeued[step.item.id] = true; queue.push({ item: step.item, mode: step.mode === 'en2ru' ? 'ru2en' : step.mode, repeat: true }); }
+      return { ...s, queue, requeued, results: [...s.results, { item: step.item, mode: step.mode, result, given, repeat: !!step.repeat }] };
+    });
+    setAnswered(result);
+  };
+
+  const finish = () => setSession((s) => ({ ...s, finished: true }));
+
+  const next = () => {
+    setAnswered(null);
+    setSession((s) => {
+      const timeUp = s.endsAt && Date.now() >= s.endsAt;
+      const pos = s.pos + 1;
+      if (timeUp || pos >= s.queue.length) {
+        if (s.timeMode && !timeUp && pos >= s.queue.length) {
+          // Время ещё есть — добавим новый круг
+          const more = buildQueue(pool.length ? pool : s.queue.map((x) => x.item), [], Math.max(pool.length, 10)).map((item) => ({ item, mode: pickMode(item, mode) }));
+          return { ...s, pos, queue: [...s.queue, ...more] };
+        }
+        return { ...s, pos, finished: true };
+      }
+      return { ...s, pos };
+    });
+  };
+
+  // ---------- Итог ----------
+  if (session && session.finished) {
+    const res = session.results;
+    const good = res.filter((r) => r.result === 'ok' || r.result === 'self-ok').length;
+    const typos = res.filter((r) => r.result === 'typo').length;
+    const wrongItems = [];
+    res.forEach((r) => { if ((r.result === 'wrong' || r.result === 'self-wrong') && !wrongItems.some((w) => w.id === r.item.id)) wrongItems.push(r.item); });
+    const mins = Math.max(1, Math.round((Date.now() - session.startedAt) / 60000));
+    return (
+      <div className="fade-in space-y-6">
+        <SectionTitle eyebrow="Повторение" title="Итог занятия">{res.length ? `Ответов: ${res.length} за ~${mins} мин. Результат уже сохранён.` : 'Вы закончили, не ответив ни на одну карточку.'}</SectionTitle>
+        <Panel>
+          <dl className="grid gap-3 grid-cols-3">
+            <div className="rounded-xl bg-greenSoft p-3"><dt className="text-xs text-muted">Верно</dt><dd className="font-display text-3xl font-semibold text-green tnum">{good}</dd></div>
+            <div className="rounded-xl bg-amberSoft p-3"><dt className="text-xs text-muted">С опечаткой</dt><dd className="font-display text-3xl font-semibold text-amber tnum">{typos}</dd></div>
+            <div className="rounded-xl bg-redSoft p-3"><dt className="text-xs text-muted">Ошибки</dt><dd className="font-display text-3xl font-semibold text-red tnum">{res.length - good - typos}</dd></div>
+          </dl>
+          {wrongItems.length > 0 && (
+            <div className="mt-5">
+              <h3 className="font-medium">Стоит повторить</h3>
+              <ul className="mt-2 divide-y divide-line">
+                {wrongItems.map((i) => (
+                  <li key={i.id} className="py-2 flex flex-wrap gap-x-3">
+                    <span className="font-semibold" lang="en">{i.type === 'rule' ? i.ru : i.en}</span>
+                    <span className="text-muted">{i.type === 'rule' ? i.en : i.ru}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <div className="mt-5 flex flex-wrap gap-2">
+            {wrongItems.length > 0 && <button onClick={() => start(wrongItems)} className="px-5 py-2.5 rounded-xl bg-red text-surface font-medium">Повторить только ошибки ({wrongItems.length})</button>}
+            <button onClick={() => start()} disabled={!pool.length} className="px-5 py-2.5 rounded-xl bg-indigo text-surface font-medium disabled:opacity-50">Ещё одно занятие</button>
+            <button onClick={() => setSession(null)} className="px-5 py-2.5 rounded-xl border-2 border-line hover:border-indigo">К выбору темы</button>
+          </div>
+        </Panel>
+      </div>
+    );
+  }
+
+  // ---------- Сессия ----------
+  if (session) {
+    const step = session.queue[session.pos];
+    const total = session.timeMode ? null : session.queue.length;
+    const left = session.endsAt ? session.endsAt - nowTs : null;
+    return (
+      <div className="fade-in space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-muted tnum">
+            {session.timeMode ? <>Осталось <b className={left < 30000 ? 'text-red' : 'text-ink'}>{fmtClock(left)}</b> · ответов: {session.results.length}</> : <>Карточка {Math.min(session.pos + 1, total)} из {total}</>}
+            {step && step.repeat && <span className="ml-2 text-amber">повтор ошибки</span>}
+          </p>
+          <button onClick={finish} className="text-sm px-3 py-1.5 rounded-lg border-2 border-line hover:border-indigo">Закончить</button>
+        </div>
+        <div className="h-1.5 rounded-full bg-surface2 overflow-hidden" aria-hidden="true">
+          <div className="h-full bg-indigo transition-all duration-500" style={{ width: session.timeMode ? `${Math.min(100, 100 - (left / (session.endsAt - session.startedAt)) * 100)}%` : `${(session.pos / total) * 100}%` }} />
+        </div>
+        {left !== null && left <= 0 && !answered && <p className="text-sm text-amber">Время вышло — ответьте на эту карточку, и покажем итог.</p>}
+        <Panel key={session.pos} className="fade-in">
+          <ReviewCard step={step} answered={answered} onResult={record} onNext={next} />
+        </Panel>
+      </div>
+    );
+  }
+
+  // ---------- Выбор ----------
+  const chip = (on) => `shrink-0 px-3 py-1.5 rounded-full text-sm border-2 transition-all duration-200 ${on ? 'border-indigo bg-indigoSoft text-indigo font-medium' : 'border-line hover:border-indigo'}`;
+  const countFor = (id) => items.filter((i) => (id === NO_TOPIC ? !i.topicId || !validTopicIds.has(i.topicId) : i.topicId === id)).length;
+  const L = LENGTHS.find((l) => l.key === length) || LENGTHS[0];
+
+  if (!items.length) {
+    const addSample = () => {
+      const stamp = new Date().toISOString();
+      const t = { id: newId('t'), name: 'Пример: базовые слова', createdAt: stamp };
+      const list = SAMPLE_WORDS.map(([en, ru, note]) => ({ id: newId('i'), type: en.includes(' ') ? 'phrase' : 'word', en, ru, note, ipa: (DICT[en] && DICT[en].us) ? '/' + DICT[en].us + '/' : '', topicId: t.id, createdAt: stamp, updatedAt: stamp }));
+      setData((d) => ({ ...d, topics: [...d.topics, t], items: [...list, ...d.items] }));
+    };
+    return (
+      <div className="fade-in space-y-6">
+        <SectionTitle eyebrow="Мои материалы" title="Повторение">Короткие занятия на 5–15 минут по вашим карточкам: вспоминаете, пишете ответ, сразу видите правильный вариант.</SectionTitle>
+        <Panel className="text-center">
+          <p className="font-medium">Для повторения нужны карточки в «Моей базе»</p>
+          <p className="text-sm text-muted mt-1">Добавьте слова, которые уже изучили, или попробуйте на 12 примерах.</p>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <button onClick={() => go('base')} className="px-5 py-2.5 rounded-xl bg-indigo text-surface font-medium">Открыть «Мою базу»</button>
+            <button onClick={addSample} className="px-5 py-2.5 rounded-xl border-2 border-line hover:border-indigo">Добавить 12 слов для пробы</button>
+          </div>
+        </Panel>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fade-in space-y-6">
+      <SectionTitle eyebrow="Мои материалы" title="Повторение">Короткие занятия на 5–15 минут по вашим карточкам. Сначала идут карточки, которые вы давно не повторяли; ошибки возвращаются в конце занятия.</SectionTitle>
+
+      <Panel>
+        <h3 className="font-display text-xl font-semibold">1. Что повторяем</h3>
+        <div className="mt-3 flex flex-wrap gap-2" aria-label="Темы для повторения">
+          <button aria-pressed={sel.includes('all')} onClick={() => toggleTopic('all')} className={chip(sel.includes('all'))}>Все темы <span className="tnum opacity-70">{items.length}</span></button>
+          {topics.map((t) => <button key={t.id} aria-pressed={sel.includes(t.id)} onClick={() => toggleTopic(t.id)} className={chip(sel.includes(t.id))}>{t.name} <span className="tnum opacity-70">{countFor(t.id)}</span></button>)}
+          {countFor(NO_TOPIC) > 0 && <button aria-pressed={sel.includes(NO_TOPIC)} onClick={() => toggleTopic(NO_TOPIC)} className={chip(sel.includes(NO_TOPIC))}>Без темы <span className="tnum opacity-70">{countFor(NO_TOPIC)}</span></button>}
+        </div>
+        <label className="mt-3 inline-flex items-center gap-2 text-sm">
+          <input id="with-rules" type="checkbox" checked={withRules} onChange={(e) => setWithRules(e.target.checked)} className="w-4 h-4" /> Включать правила
+        </label>
+      </Panel>
+
+      <Panel>
+        <h3 className="font-display text-xl font-semibold">2. Как повторяем</h3>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {MODES.map((m) => (
+            <button key={m.key} aria-pressed={mode === m.key} onClick={() => setMode(m.key)}
+              className={`text-left rounded-xl border-2 p-3 transition-all duration-200 ${mode === m.key ? 'border-indigo bg-indigoSoft' : 'border-line hover:border-indigo'}`}>
+              <span className={`block font-medium ${mode === m.key ? 'text-indigo' : ''}`}>{m.label}</span>
+              <span className="block text-xs text-muted mt-0.5">{m.desc}{m.key === 'cloze' ? ` · подходящих карточек: ${clozeCount}` : ''}</span>
+            </button>
+          ))}
+        </div>
+        <h3 className="font-display text-xl font-semibold mt-5">3. Сколько</h3>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {LENGTHS.map((l) => <button key={l.key} aria-pressed={length === l.key} onClick={() => setLength(l.key)} className={chip(length === l.key)}>{l.label}</button>)}
+        </div>
+      </Panel>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button onClick={() => start()} disabled={!pool.length}
+          className="inline-flex items-center gap-2 bg-indigo text-surface px-6 py-3 rounded-xl font-medium text-lg transition-transform duration-200 hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0">
+          Начать <ArrowRight size={20} />
+        </button>
+        <span className="text-sm text-muted tnum">
+          {pool.length ? `Карточек в подборке: ${pool.length}${L.cards && L.cards > pool.length ? ` — занятие будет из ${pool.length}` : ''}` : 'В подборке нет подходящих карточек. Выберите другие темы или режим.'}
+        </span>
       </div>
     </div>
   );
@@ -3167,6 +3575,7 @@ const NAV_GROUPS = [
     { key: 'pronounce', label: 'Произношение', icon: Volume2 },
   ] },
   { title: 'Мои материалы', items: [
+    { key: 'review', label: 'Повторение', icon: RepeatIcon },
     { key: 'base', label: 'Моя база', icon: Library },
     { key: 'data', label: 'Мои данные', icon: SaveIcon },
   ] },
@@ -3313,6 +3722,7 @@ function App() {
           {view === 'home' && <HomeView progress={progress} go={go} reset={() => setData((d) => ({ ...d, progress: {} }))} lastExportAt={data.meta.lastExportAt} itemsCount={data.items.length} />}
           {view === 'data' && <DataView data={data} setData={setData} storageNote={storageNote} />}
           {view === 'base' && <MyBaseView data={data} setData={setData} />}
+          {view === 'review' && <ReviewView data={data} setData={setData} go={go} />}
           {view === 'tenses' && <TensesView progress={progress} onCorrect={onCorrect} />}
           {view === 'tobe' && <ToBeView progress={progress} onCorrect={onCorrect} />}
           {view === 'possessive' && <PossessiveView progress={progress} onCorrect={onCorrect} />}
