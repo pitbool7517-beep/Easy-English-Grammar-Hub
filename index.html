@@ -223,7 +223,7 @@ const PRONOUNS = [
 ];
 const COMPLEMENTS = [
   { en: 'happy', ru: 'счастлив(ы)', plural: 'happy' },
-  { en: 'a student', ru: 'студент', plural: 'students' },
+  { en: 'a student', ru: 'студент', plural: 'students', it: 'a small dog', itRu: 'маленькая собака' },
   { en: 'at home', ru: 'дома', plural: 'at home' },
   { en: 'from Russia', ru: 'из России', plural: 'from Russia' },
 ];
@@ -708,7 +708,7 @@ function ToBeView({ progress, onCorrect }) {
   const P = PRONOUNS[pi];
   const C = COMPLEMENTS[ci];
   const pluralSubj = ['We', 'They'].includes(P.p);
-  const comp = pluralSubj ? C.plural : C.en;
+  const comp = pluralSubj ? C.plural : (P.p === 'It' && C.it ? C.it : C.en);
 
   let parts;
   if (mode === 'pos') parts = [P.p, P.form, comp + '.'];
@@ -717,7 +717,8 @@ function ToBeView({ progress, onCorrect }) {
   const shortNote = mode === 'pos' ? `Коротко: ${P.short} ${comp}.` : mode === 'neg'
     ? `Коротко: ${P.p === 'I' ? "I'm not" : P.form === 'is' ? `${P.p} isn't` : `${P.p} aren't`} ${comp}.` : 'В вопросе форма to be выходит на первое место.';
   const ruPron = P.ru.split(' / ')[0];
-  const ru = mode === 'pos' ? `${ruPron} — ${C.ru}.` : mode === 'neg' ? `${ruPron} не ${C.ru}.` : `${ruPron} ${C.ru}?`;
+  const cRu = P.p === 'It' && C.itRu ? C.itRu : C.ru;
+  const ru = mode === 'pos' ? `${ruPron} — ${cRu}.` : mode === 'neg' ? `${ruPron} не ${cRu}.` : `${ruPron} ${cRu}?`;
 
   return (
     <div className="fade-in space-y-6">
@@ -768,7 +769,8 @@ function ToBeView({ progress, onCorrect }) {
 
         <div className="mt-6 rounded-2xl bg-surface2 border border-line p-5">
           <p className="text-xs uppercase tracking-wider text-muted">Готовое предложение</p>
-          <div key={`${pi}-${mode}-${ci}`} className="flex flex-wrap gap-2 mt-3">
+          <p className="sr-only" lang="en">{parts.join(' ')}</p>
+          <div key={`${pi}-${mode}-${ci}`} className="flex flex-wrap gap-2 mt-3" aria-hidden="true">
             {parts.map((w, i) => {
               const isVerb = (mode === 'q' && i === 0) || (mode !== 'q' && i === 1);
               return (
@@ -2288,6 +2290,128 @@ function ReviewView({ data, setData, go }) {
   );
 }
 
+/* ---------- Проверка внешних сервисов (по кнопке) ---------- */
+const SERVICE_CHECKS = [
+  { key: 'lt', name: 'LanguageTool', use: 'Проверка текста и написания', url: 'https://languagetool.org',
+    run: async (signal) => {
+      const res = await fetch(LT_URL, { method: 'POST', body: new URLSearchParams({ text: 'She go to school.', language: 'en-US' }), signal, headers: { Accept: 'application/json' } });
+      if (!res.ok) throw httpError(res.status);
+      const d = await res.json();
+      if (!Array.isArray(d.matches)) throw new Error('unexpected');
+      return `нашёл ошибок в тестовой фразе: ${d.matches.length}`;
+    } },
+  { key: 'mm', name: 'MyMemory', use: 'Перевод на русский', url: 'https://mymemory.translated.net',
+    run: async (signal) => `«Good morning» → «${await translateMyMemory('Good morning', signal)}»` },
+  { key: 'wk', name: 'Wiktionary', use: 'Транскрипции US / UK', url: 'https://en.wiktionary.org',
+    run: async (signal) => { const r = await fetchWiktionary('water', signal); if (!r) throw new Error('empty'); return `water: /${r.us}/ (US), /${r.uk}/ (UK)`; } },
+  { key: 'fd', name: 'Free Dictionary API', use: 'Транскрипции и записи носителей', url: 'https://dictionaryapi.dev',
+    run: async (signal) => { const r = await fetchDictionary('water', signal); if (!r || !r.found) throw new Error('empty'); return `water: ${r.us || r.uk}${r.audioUS || r.audioUK ? ', есть запись' : ''}`; } },
+  { key: 'dm', name: 'Datamuse', use: 'Запасная транскрипция и подсказки написания', url: 'https://www.datamuse.com/api/',
+    run: async (signal) => { const r = await fetchDatamuseIPA('water', signal); if (!r) throw new Error('empty'); return `water: /${r}/`; } },
+];
+function httpError(status) { const e = new Error('HTTP ' + status); e.status = status; return e; }
+function describeServiceError(e) {
+  if (e && e.code === 'quota') return 'дневной лимит исчерпан';
+  if (e && e.status === 429) return 'слишком много запросов, попробуйте позже';
+  if (e && (e.status === 401 || e.status === 403)) return `сервис отказал в доступе (код ${e.status}) — возможно, теперь нужен ключ`;
+  if (e && e.status) return `сервис ответил ошибкой (код ${e.status})`;
+  if (e && e.message === 'empty') return 'ответ пришёл, но без данных';
+  if (e && e.name === 'TypeError') return 'нет связи или сервис не принимает запросы с сайта';
+  return 'не удалось проверить';
+}
+
+function ServicesPanel() {
+  const inArtifact = !!(window.claude && typeof window.claude.use === 'function');
+  const [rows, setRows] = useState({});
+  const [running, setRunning] = useState(false);
+  const [copied, setCopied] = useState('');
+  const runAll = async () => {
+    setRunning(true); setRows({}); setCopied('');
+    for (const s of SERVICE_CHECKS) {
+      setRows((r) => ({ ...r, [s.key]: { state: 'run' } }));
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), 15000);
+      const t0 = performance.now();
+      try {
+        const note = await s.run(ctl.signal);
+        setRows((r) => ({ ...r, [s.key]: { state: 'ok', note, ms: Math.round(performance.now() - t0) } }));
+      } catch (e) {
+        const note = isAbort(e) ? 'нет ответа 15 секунд' : describeServiceError(e);
+        setRows((r) => ({ ...r, [s.key]: { state: 'fail', note } }));
+      } finally { clearTimeout(timer); }
+    }
+    setRunning(false);
+  };
+  const report = () => [`Easy English — проверка сервисов, ${new Date().toLocaleString('ru-RU')}`, `Браузер: ${navigator.userAgent}`]
+    .concat(SERVICE_CHECKS.map((s) => { const r = rows[s.key] || {}; return `${r.state === 'ok' ? 'OK  ' : 'FAIL'} ${s.name}: ${r.note || '—'}${r.ms ? ` (${r.ms} мс)` : ''}`; })).join('\n');
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(report()); setCopied('Результат скопирован.'); }
+    catch (e) { setCopied('Не удалось скопировать автоматически — выделите текст ниже.'); }
+  };
+  const done = Object.values(rows).filter((r) => r.state === 'ok' || r.state === 'fail').length === SERVICE_CHECKS.length;
+  return (
+    <Panel>
+      <h3 className="font-display text-xl font-semibold">Внешние сервисы</h3>
+      <p className="text-sm text-muted mt-1">Проверка текста, перевод и транскрипции работают через бесплатные сервисы. Кнопка отправит каждому один короткий тестовый запрос.</p>
+      {inArtifact && <p className="text-sm text-amber mt-2">Здесь, внутри Claude, внешние сервисы недоступны — проверку стоит запускать на сайте.</p>}
+      <button onClick={runAll} disabled={running} className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border-2 border-indigo text-indigo font-medium hover:bg-indigoSoft disabled:opacity-60">
+        {running ? <Loader2 size={17} className="animate-spin" /> : <CheckCircle2 size={17} />} Проверить сервисы
+      </button>
+      {Object.keys(rows).length > 0 && (
+        <ul className="mt-4 divide-y divide-line" aria-live="polite">
+          {SERVICE_CHECKS.map((s) => {
+            const r = rows[s.key];
+            return (
+              <li key={s.key} className="py-2.5 flex gap-3 items-start" data-service={s.key} data-state={r ? r.state : 'wait'}>
+                <span className="w-5 shrink-0 mt-0.5">
+                  {!r ? <span className="text-muted">·</span> : r.state === 'run' ? <Loader2 size={18} className="animate-spin text-indigo" /> : r.state === 'ok' ? <CheckCircle2 size={18} className="text-green" /> : <XCircle size={18} className="text-red" />}
+                </span>
+                <span className="min-w-0">
+                  <span className="block font-medium"><a href={s.url} target="_blank" rel="noopener" className="hover:underline">{s.name}</a> <span className="text-xs text-muted font-normal">· {s.use}</span></span>
+                  {r && r.note && <span className={`block text-sm break-words ${r.state === 'fail' ? 'text-red' : 'text-muted'}`}>{r.note}{r.ms ? ` · ${r.ms} мс` : ''}</span>}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {done && (
+        <div className="mt-3">
+          <button onClick={copy} className="text-sm text-indigo underline">Скопировать результат</button>
+          {copied && <span className="text-sm text-muted ml-2">{copied}</span>}
+          <pre className="mt-2 text-xs bg-surface2 rounded-xl p-3 whitespace-pre-wrap break-words select-all">{report()}</pre>
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+function TranslationEmailPanel({ data, setData }) {
+  const saved = (data.settings && data.settings.mymemoryEmail) || '';
+  const [value, setValue] = useState(saved);
+  const [msg, setMsg] = useState('');
+  const save = (e) => {
+    e.preventDefault();
+    const v = value.trim();
+    if (v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) { setMsg('Похоже, в адресе ошибка. Пример: name@mail.ru'); return; }
+    setData((d) => ({ ...d, settings: { ...d.settings, mymemoryEmail: v } }));
+    setMsg(v ? 'Сохранено. Лимит перевода — до 50 000 символов в день.' : 'Адрес удалён. Лимит перевода — 5 000 символов в день.');
+  };
+  return (
+    <Panel>
+      <h3 className="font-display text-xl font-semibold">Лимит перевода</h3>
+      <p className="text-sm text-muted mt-1">Бесплатный перевод MyMemory без адреса — 5 000 символов в день, с адресом электронной почты — 50 000. Адрес необязателен: он хранится только в этом браузере и отправляется только сервису MyMemory вместе с текстом для перевода.</p>
+      <form onSubmit={save} noValidate className="mt-3 flex flex-wrap gap-2 max-w-lg">
+        <label htmlFor="mm-email" className="sr-only">Электронная почта для MyMemory</label>
+        <input id="mm-email" type="email" value={value} onChange={(e) => { setValue(e.target.value); setMsg(''); }} placeholder="name@mail.ru" autoComplete="email"
+          className="flex-1 min-w-[12rem] rounded-xl border-2 border-line bg-surface2 px-3 py-2 outline-none focus:border-indigo" />
+        <button type="submit" className="px-4 py-2 rounded-xl bg-indigo text-surface font-medium">Сохранить</button>
+      </form>
+      {msg && <p className="text-sm mt-2">{msg}</p>}
+    </Panel>
+  );
+}
+
 /* ---------- Мои данные: резервная копия ---------- */
 function fmtDate(iso) {
   if (!iso) return '';
@@ -2457,6 +2581,9 @@ function DataView({ data, setData, storageNote }) {
       </Panel>
 
       {msg && <Feedback ok={msg.ok} text={msg.text} />}
+
+      <TranslationEmailPanel data={data} setData={setData} />
+      <ServicesPanel />
     </div>
   );
 }
@@ -2480,6 +2607,18 @@ function buildCheckPrompt(text) {
 }
 
 /* Простая офлайн-проверка (если Claude недоступен, например на GitHub Pages) */
+/* Данные для простых правил */
+const THIRD_PERSON = { go: 'goes', like: 'likes', want: 'wants', play: 'plays', live: 'lives', work: 'works', make: 'makes', eat: 'eats', drink: 'drinks',
+  read: 'reads', watch: 'watches', know: 'knows', think: 'thinks', come: 'comes', love: 'loves', need: 'needs', study: 'studies', speak: 'speaks',
+  get: 'gets', take: 'takes', see: 'sees', say: 'says', try: 'tries', cook: 'cooks', swim: 'swims', walk: 'walks', sleep: 'sleeps', wash: 'washes', fix: 'fixes', teach: 'teaches', rain: 'rains', snow: 'snows', open: 'opens', start: 'starts', finish: 'finishes' };
+const BASE_FORM = Object.fromEntries(Object.entries(THIRD_PERSON).map(([b, t]) => [t, b]).concat([['has', 'have'], ['does', 'do']]));
+const AUX_BEFORE = /\b(does|did|do|doesn't|didn't|don't|will|won't|can|can't|cannot|could|should|would|may|might|must|let|make|makes|made|help|helps|to|and|or)\s+$/i;
+const IRREGULAR_PLURAL_WORDS = new Set(['people', 'children', 'men', 'women', 'police', 'teeth', 'feet', 'mice', 'sheep', 'fish', 'data', 'cattle', 'geese']);
+const ADJ_OR_ADV = new Set(['only', 'very', 'really', 'other', 'same', 'two', 'three', 'four', 'five', 'many', 'few', 'both', 'all', 'most', 'some']);
+const SINGULAR_S_WORDS = new Set(['news', 'series', 'species', 'physics', 'maths', 'mathematics', 'economics', 'athletics', 'gas', 'lens', 'chaos']);
+const V3_FORM = { went: 'gone', saw: 'seen', ate: 'eaten', did: 'done', took: 'taken', wrote: 'written', gave: 'given', drank: 'drunk', spoke: 'spoken',
+  broke: 'broken', knew: 'known', came: 'come', began: 'begun', ran: 'run', swam: 'swum', forgot: 'forgotten', chose: 'chosen', drove: 'driven', flew: 'flown' };
+
 const OFFLINE_RULES = [
   { re: /\b(he|she|it)\s+(have)\b/gi, fix: (m, s) => `${s} has`, explain: 'С he/she/it используется has, а не have.' },
   { re: /\b(he|she|it)\s+(don't|do not)\b/gi, fix: (m, s) => `${s} doesn't`, explain: "С he/she/it отрицание строится через doesn't." },
@@ -2494,6 +2633,25 @@ const OFFLINE_RULES = [
   { re: /\bi\b/g, fix: () => 'I', explain: 'Местоимение I всегда пишется с большой буквы.' },
   { re: /\b(yesterday|last \w+|ago)\b[^.?!]*?\b(I|we|they|you|he|she)\s+(go|have|see|come|eat|drink|buy|take|make|do)\b/gi,
     fix: null, explain: 'Есть слово-маркер прошлого (yesterday, last…, ago) — нужен Past Simple (V2).' },
+  // he/she/it + глагол без -s (She go → She goes). Не срабатывает после does/can/will/to/let и т.п.
+  { re: new RegExp('\\b(he|she|it)\\s+(' + Object.keys(THIRD_PERSON).join('|') + ')\\b', 'gi'),
+    fix: (m, s, v) => `${s} ${THIRD_PERSON[v.toLowerCase()]}`,
+    explain: 'В Present Simple с he/she/it глагол получает окончание -s / -es.',
+    guard: (g, before) => !AUX_BEFORE.test(before) },
+  // «the dog are» → «the dog is»: существительное в единственном числе
+  { re: /\b(the|this|that|my|your|his|her|its|our|their|a|an)\s+([a-z]+)\s+(are)\b/gi,
+    fix: (m, d, n) => `${d} ${n} is`,
+    explain: 'Существительное в единственном числе (он / она / оно) → is, а не are.',
+    guard: (g) => !/(s|ss)$/i.test(g[1]) && !IRREGULAR_PLURAL_WORDS.has(g[1].toLowerCase()) && !ADJ_OR_ADV.has(g[1].toLowerCase()) },
+  // «my friends likes» → «my friends like»: подлежащее во множественном числе
+  { re: new RegExp('\\b(my|your|his|her|our|their|the|these|those)\\s+([a-z]+s)\\s+(' + Object.values(THIRD_PERSON).concat(['has', 'does']).join('|') + ')\\b', 'gi'),
+    fix: (m, d, n, v) => `${d} ${n} ${BASE_FORM[v.toLowerCase()]}`,
+    explain: 'Подлежащее во множественном числе (они) → глагол без -s.',
+    guard: (g) => !/(ss|us|is)$/i.test(g[1]) && !SINGULAR_S_WORDS.has(g[1].toLowerCase()) },
+  // «have went» → «have gone»: после have/has нужна третья форма
+  { re: new RegExp("\\b(have|has|haven't|hasn't|I've|you've|we've|they've)\\s+(" + Object.keys(V3_FORM).join('|') + ')\\b', 'gi'),
+    fix: (m, h, v) => `${h} ${V3_FORM[v.toLowerCase()]}`,
+    explain: 'После have / has нужна третья форма глагола (Present Perfect): went → gone, saw → seen.' },
 ];
 function offlineCheck(text) {
   const errors = [];
@@ -2501,7 +2659,7 @@ function offlineCheck(text) {
     text.replace(r.re, (...args) => {
       const m = args[0];
       const groups = args.slice(1, -2);
-      if (r.guard && !r.guard(groups)) return m;
+      if (r.guard && !r.guard(groups, text.slice(0, args[args.length - 2]))) return m;
       if (r.fix) errors.push({ wrong: m, correct: r.fix(m, ...groups), type: 'grammar', explain: r.explain, index: args[args.length - 2] });
       else {
         const verb = groups[2];
@@ -3096,16 +3254,8 @@ function offlineSpell(word) {
   const lw = word.toLowerCase().replace(/’/g, "'");
   if (MISSPELL[lw]) return { ok: false, sure: true, suggestions: [keepCase(word, MISSPELL[lw])] };
   if (stems(lw).some((s) => KNOWN.has(s))) return { ok: true };
-  if (lw.length <= 4) return { ok: true, unknown: true };
-  const limit = lw.length <= 5 ? 1 : 2;
-  const cands = [];
-  for (const k of KNOWN_LIST) {
-    if (Math.abs(k.length - lw.length) > limit) continue;
-    const dist = editDistance(lw, k);
-    if (dist <= limit) cands.push([dist, Math.abs(k.length - lw.length), k]);
-  }
-  cands.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-  if (cands.length) return { ok: false, sure: false, suggestions: cands.slice(0, 3).map((c) => keepCase(word, c[2])) };
+  // Незнакомые слова не помечаем: встроенный словарь маленький, а догадки по похожему написанию
+  // давали ложные подчёркивания (plane → place). Полная проверка — после «Послушать» (LanguageTool и словари).
   return { ok: true, unknown: true };
 }
 
@@ -3154,7 +3304,7 @@ function buildPronouncePrompt(input) {
 async function fetchDictionary(word, signal) {
   const res = await fetch('https://api.dictionaryapi.dev/api/v2/entries/en/' + encodeURIComponent(word.toLowerCase()), { signal });
   if (res.status === 404) return { found: false };
-  if (!res.ok) throw new Error('dict ' + res.status);
+  if (!res.ok) throw httpError(res.status);
   const data = await res.json();
   const entry = Array.isArray(data) ? data[0] : null;
   if (!entry) return { found: false };
@@ -3214,7 +3364,7 @@ async function fetchWiktionary(word, signal) {
   for (const v of variants) {
     const url = 'https://en.wiktionary.org/w/api.php?action=query&prop=revisions&rvprop=content&rvslots=main&format=json&formatversion=2&redirects=1&origin=*&titles=' + encodeURIComponent(v);
     const res = await fetch(url, { signal });
-    if (!res.ok) throw new Error('wiki ' + res.status);
+    if (!res.ok) throw httpError(res.status);
     const data = await res.json();
     const page = data && data.query && data.query.pages && data.query.pages[0];
     const content = page && !page.missing && page.revisions && page.revisions[0] && page.revisions[0].slots && page.revisions[0].slots.main.content;
@@ -3226,7 +3376,7 @@ async function fetchWiktionary(word, signal) {
 /* Datamuse (основан на словаре произношений CMU): американская транскрипция и исправление опечаток */
 async function fetchDatamuseIPA(word, signal) {
   const res = await fetch('https://api.datamuse.com/words?md=r&ipa=1&max=1&sp=' + encodeURIComponent(word.toLowerCase()), { signal });
-  if (!res.ok) throw new Error('datamuse ' + res.status);
+  if (!res.ok) throw httpError(res.status);
   const data = await res.json();
   const hit = Array.isArray(data) ? data[0] : null;
   if (!hit || String(hit.word).toLowerCase() !== word.toLowerCase()) return null;
@@ -3236,7 +3386,7 @@ async function fetchDatamuseIPA(word, signal) {
 }
 async function fetchDatamuseSuggestions(word, signal) {
   const res = await fetch('https://api.datamuse.com/sug?max=4&s=' + encodeURIComponent(word.toLowerCase()), { signal });
-  if (!res.ok) throw new Error('datamuse ' + res.status);
+  if (!res.ok) throw httpError(res.status);
   const data = await res.json();
   return (Array.isArray(data) ? data : []).map((d) => String(d.word)).filter((w) => /^[a-z' -]+$/i.test(w) && w.toLowerCase() !== word.toLowerCase()).slice(0, 3);
 }
@@ -3257,10 +3407,14 @@ function splitForTranslation(text, max = 450) {
   if (cur.trim()) chunks.push(cur);
   return chunks.map((c) => c.trim()).filter(Boolean);
 }
+// E-mail пользователя для MyMemory (повышает лимит до 50 000 символов в день). Задаётся в «Моих данных».
+let myMemoryEmail = '';
+function setMyMemoryEmail(v) { myMemoryEmail = String(v || '').trim(); }
 async function translateMyMemory(text, signal) {
   const out = [];
   for (const chunk of splitForTranslation(text)) {
-    const res = await fetch('https://api.mymemory.translated.net/get?langpair=en|ru&q=' + encodeURIComponent(chunk), { signal });
+    const de = myMemoryEmail ? '&de=' + encodeURIComponent(myMemoryEmail) : '';
+    const res = await fetch('https://api.mymemory.translated.net/get?langpair=en|ru' + de + '&q=' + encodeURIComponent(chunk), { signal });
     if (!res.ok) { const e = new Error('mymemory ' + res.status); e.code = res.status === 429 ? 'quota' : 'http'; throw e; }
     const data = await res.json();
     const t = data && data.responseData && data.responseData.translatedText;
@@ -3767,6 +3921,7 @@ function App() {
   const [toast, setToast] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => { setSaveFailed(!saveData(data)); }, [data]);
+  useEffect(() => { setMyMemoryEmail(data.settings && data.settings.mymemoryEmail); }, [data.settings && data.settings.mymemoryEmail]);
   useEffect(() => {
     window.__eeghMounted = true;
     // Попросить браузер не удалять данные сайта при нехватке места
