@@ -122,7 +122,7 @@ const Home = icon('Home'), Clock = icon('Clock'), Sparkles = icon('Sparkles'), Q
   SpellCheck = icon('SpellCheck'), Volume2 = icon('Volume2'), Loader2 = icon('Loader2'), Square = icon('Square'),
   Wand2 = icon('Wand2'), AlertTriangle = icon('AlertTriangle'),
   Menu = icon('Menu'), X = icon('X'), Languages = icon('Languages'), PlayCircle = icon('PlayCircle'),
-  TypeIcon = icon('Type'), PenLine = icon('PenLine'), SaveIcon = icon('Save'), Library = icon('Library'), RepeatIcon = icon('Repeat');
+  TypeIcon = icon('Type'), PenLine = icon('PenLine'), SaveIcon = icon('Save'), Library = icon('Library'), RepeatIcon = icon('Repeat'), Flame = icon('Flame');
 
 /* ---------- Данные ---------- */
 const TENSES = {
@@ -495,7 +495,7 @@ function ChoiceQuestion({ q, index, options, solved, onCorrect }) {
 }
 
 /* ---------- Главная ---------- */
-function HomeView({ progress, go, reset, lastExportAt, itemsCount }) {
+function HomeView({ progress, go, reset, lastExportAt, itemsCount, hardCount }) {
   const correct = countSolved(progress);
   const [confirmReset, setConfirmReset] = useState(false);
   const pct = Math.round((correct / TOTAL) * 100);
@@ -584,7 +584,7 @@ function HomeView({ progress, go, reset, lastExportAt, itemsCount }) {
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         {[
-          { key: 'review', title: 'Повторение', desc: itemsCount ? `Занятие на 5–15 минут по вашим ${itemsCount} ${plural(itemsCount, 'карточке', 'карточкам', 'карточкам')}` : 'Короткие занятия по вашим карточкам', icon: RepeatIcon },
+          { key: 'review', title: 'Повторение', desc: itemsCount ? `Занятие на 5–15 минут по вашим ${itemsCount} ${plural(itemsCount, 'карточке', 'карточкам', 'карточкам')}${hardCount ? `. Трудных: ${hardCount}` : ''}` : 'Короткие занятия по вашим карточкам', icon: RepeatIcon },
           { key: 'base', title: 'Моя база', desc: itemsCount ? `Ваших карточек: ${itemsCount}. Добавляйте слова, выражения и правила по темам` : 'Добавляйте свои слова, выражения и правила по темам', icon: Library },
           { key: 'checker', title: 'Проверка текста', desc: 'Напишите текст — тренажёр найдёт ошибки и объяснит правила', icon: SpellCheck },
           { key: 'pronounce', title: 'Произношение', desc: 'Введите слово и послушайте, как оно звучит', icon: Volume2 },
@@ -1550,7 +1550,7 @@ function BulkAdd({ topics, defaultTopic, existing, onAdd }) {
   );
 }
 
-function ItemRow({ item, topics, onUpdate, onDelete }) {
+function ItemRow({ item, topics, onUpdate, onDelete, stat }) {
   const [mode, setMode] = useState('view'); // view | edit | confirm
   const topic = topics.find((t) => t.id === item.topicId);
   if (mode === 'edit') {
@@ -1577,7 +1577,11 @@ function ItemRow({ item, topics, onUpdate, onDelete }) {
         <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
           <span className="px-2 py-0.5 rounded-full bg-surface2 text-muted">{ITEM_TYPES[item.type].label}</span>
           <span className="px-2 py-0.5 rounded-full bg-indigoSoft text-indigo">{topic ? topic.name : 'Без темы'}</span>
+          {stat && stat.difficult && <span className="px-2 py-0.5 rounded-full bg-redSoft text-red font-medium inline-flex items-center gap-1" data-hard="1"><Flame size={12} /> трудная</span>}
         </div>
+        <p className="text-xs text-muted mt-1.5 tnum" data-stat={item.id}>
+          {stat ? `Ответов: ${stat.total} · ошибок: ${stat.wrong} · последний раз ${shortDay(stat.last)}` : 'Ещё не повторяли'}
+        </p>
         {mode === 'confirm' && (
           <div className="fade-in mt-3 flex flex-wrap items-center gap-2 text-sm rounded-xl bg-redSoft px-3 py-2">
             <span>Удалить эту карточку?</span>
@@ -1597,6 +1601,9 @@ function ItemRow({ item, topics, onUpdate, onDelete }) {
 
 function MyBaseView({ data, setData }) {
   const { topics, items } = data;
+  const stats = useMemo(() => computeStats(data.reviews), [data.reviews]);
+  const [onlyHard, setOnlyHard] = useState(false);
+  const hardCount = items.filter((i) => stats[i.id] && stats[i.id].difficult).length;
   const [topicFilter, setTopicFilter] = useState('all'); // all | NO_TOPIC | topic id
   const [typeFilter, setTypeFilter] = useState('all');
   const [query, setQuery] = useState('');
@@ -1658,6 +1665,7 @@ function MyBaseView({ data, setData }) {
     if (topicFilter === NO_TOPIC && i.topicId && topics.some((t) => t.id === i.topicId)) return false;
     if (topicFilter !== 'all' && topicFilter !== NO_TOPIC && i.topicId !== topicFilter) return false;
     if (typeFilter !== 'all' && i.type !== typeFilter) return false;
+    if (onlyHard && !(stats[i.id] && stats[i.id].difficult)) return false;
     if (q && ![i.en, i.ru, i.note].some((x) => String(x || '').toLowerCase().includes(q))) return false;
     return true;
   });
@@ -1735,6 +1743,10 @@ function MyBaseView({ data, setData }) {
             {[['all', 'Все'], ...Object.entries(ITEM_TYPES).map(([k, t]) => [k, t.plural])].map(([k, l]) => (
               <button key={k} onClick={() => setTypeFilter(k)} aria-pressed={typeFilter === k} className={chip(typeFilter === k)}>{l}</button>
             ))}
+            <button onClick={() => setOnlyHard((v) => !v)} aria-pressed={onlyHard} disabled={!hardCount && !onlyHard}
+              className={`shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-sm border-2 transition-all duration-200 disabled:opacity-50 ${onlyHard ? 'border-red bg-redSoft text-red font-medium' : 'border-line hover:border-red'}`}>
+              <Flame size={14} /> Трудные <span className="tnum opacity-70">{hardCount}</span>
+            </button>
           </div>
         </div>
         <p className="text-sm text-muted tnum" aria-live="polite">Показано: {Math.min(filtered.length, limit)} из {filtered.length}</p>
@@ -1747,12 +1759,109 @@ function MyBaseView({ data, setData }) {
           <p className="text-muted">Ничего не нашлось. Измените поиск или фильтр.</p>
         ) : (
           <ul className="space-y-2" aria-label="Карточки">
-            {filtered.slice(0, limit).map((i) => <ItemRow key={i.id} item={i} topics={topics} onUpdate={updateItem} onDelete={deleteItem} />)}
+            {filtered.slice(0, limit).map((i) => <ItemRow key={i.id} item={i} topics={topics} onUpdate={updateItem} onDelete={deleteItem} stat={stats[i.id]} />)}
           </ul>
         )}
         {filtered.length > limit && <button onClick={() => setLimit((l) => l + 100)} className="px-4 py-2 rounded-xl border-2 border-line hover:border-indigo">Показать ещё</button>}
       </div>
     </div>
+  );
+}
+
+/* ---------- Статистика повторений и «трудные» карточки ----------
+   Карточка трудная, если среди трёх последних ответов есть ошибка.
+   Она перестаёт быть трудной после двух верных ответов подряд (опечатка считается верным). */
+const GOOD_RESULTS = new Set(['ok', 'typo', 'self-ok']);
+const BAD_RESULTS = new Set(['wrong', 'self-wrong']);
+function computeStats(reviews) {
+  const by = {};
+  for (const r of reviews || []) { if (r && r.itemId) (by[r.itemId] = by[r.itemId] || []).push(r); }
+  const out = {};
+  for (const [id, list] of Object.entries(by)) {
+    list.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+    const last2 = list.slice(-2), last3 = list.slice(-3);
+    const recovered = last2.length === 2 && last2.every((r) => GOOD_RESULTS.has(r.result));
+    out[id] = {
+      total: list.length,
+      wrong: list.filter((r) => BAD_RESULTS.has(r.result)).length,
+      last: list[list.length - 1].at,
+      difficult: !recovered && last3.some((r) => BAD_RESULTS.has(r.result)),
+    };
+  }
+  return out;
+}
+function localDayKey(d) {
+  const x = d instanceof Date ? d : new Date(d);
+  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+}
+function shortDay(d) {
+  try { return (d instanceof Date ? d : new Date(d)).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }).replace('.', ''); } catch (e) { return ''; }
+}
+
+function HistoryPanel({ reviews }) {
+  const byDay = {};
+  for (const r of reviews) {
+    const k = localDayKey(r.at);
+    const d = (byDay[k] = byDay[k] || { good: 0, bad: 0, cards: new Set() });
+    if (BAD_RESULTS.has(r.result)) d.bad += 1; else d.good += 1;
+    d.cards.add(r.itemId);
+  }
+  const today = new Date(); today.setHours(12, 0, 0, 0);
+  const days = [];
+  for (let i = 13; i >= 0; i--) { const d = new Date(today); d.setDate(today.getDate() - i); const k = localDayKey(d); days.push({ k, d, ...(byDay[k] || { good: 0, bad: 0, cards: new Set() }) }); }
+  const max = Math.max(1, ...days.map((x) => x.good + x.bad));
+  // Серия: дни подряд с занятиями, считая сегодня (или со вчера, если сегодня ещё не занимались)
+  let streak = 0;
+  const probe = new Date(today);
+  if (!byDay[localDayKey(probe)]) probe.setDate(probe.getDate() - 1);
+  while (byDay[localDayKey(probe)]) { streak += 1; probe.setDate(probe.getDate() - 1); }
+  const recent = Object.entries(byDay).sort((a, b) => (a[0] < b[0] ? 1 : -1)).slice(0, 7);
+  const total = reviews.length;
+  const totalBad = reviews.filter((r) => BAD_RESULTS.has(r.result)).length;
+
+  return (
+    <Panel>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="font-display text-xl font-semibold">История повторений</h3>
+        <span className="text-sm text-muted tnum">{streak > 0 ? `Серия: ${streak} ${plural(streak, 'день', 'дня', 'дней')} подряд` : 'Сегодня ещё не занимались'}</span>
+      </div>
+      {total === 0 ? (
+        <p className="text-sm text-muted mt-2">Здесь появятся ваши занятия по дням: сколько ответов и сколько ошибок.</p>
+      ) : (
+        <>
+          <p className="text-sm text-muted mt-1 tnum">Всего ответов: {total} · верно: {Math.round(((total - totalBad) / total) * 100)}% · дней с занятиями: {Object.keys(byDay).length}</p>
+          <div className="mt-4 overflow-x-auto">
+            <div className="flex items-end gap-1.5 h-32 min-w-[420px]" role="img" aria-label="Ответы за последние 14 дней">
+              {days.map((x) => {
+                const n = x.good + x.bad;
+                return (
+                  <div key={x.k} className="flex-1 flex flex-col items-center gap-1 h-full justify-end" title={`${shortDay(x.d)}: ${n} ${plural(n, 'ответ', 'ответа', 'ответов')}, ошибок ${x.bad}`} data-day={x.k}>
+                    <span className="text-[10px] text-muted tnum h-3">{n || ''}</span>
+                    <div className="w-full rounded-md overflow-hidden flex flex-col justify-end bg-surface2" style={{ height: `${Math.max(4, (n / max) * 88)}px` }}>
+                      {x.bad > 0 && <div className="bg-red" style={{ height: `${(x.bad / Math.max(n, 1)) * 100}%` }} />}
+                      {x.good > 0 && <div className="bg-green" style={{ height: `${(x.good / Math.max(n, 1)) * 100}%` }} />}
+                    </div>
+                    <span className={`text-[10px] tnum ${x.k === localDayKey(today) ? 'text-indigo font-semibold' : 'text-muted'}`}>{x.d.getDate()}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          <p className="text-xs text-muted mt-1 flex gap-3"><span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-green inline-block" /> верно</span><span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-red inline-block" /> ошибки</span></p>
+          <ul className="mt-4 divide-y divide-line" aria-label="Занятия по дням">
+            {recent.map(([k, v]) => {
+              const n = v.good + v.bad;
+              return (
+                <li key={k} className="py-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 text-sm" data-history-day={k}>
+                  <span className="font-medium">{k === localDayKey(today) ? 'Сегодня' : shortDay(k + 'T12:00:00')}</span>
+                  <span className="text-muted tnum">{n} {plural(n, 'ответ', 'ответа', 'ответов')} · {v.cards.size} {plural(v.cards.size, 'карточка', 'карточки', 'карточек')} · верно {Math.round((v.good / n) * 100)}%</span>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
+    </Panel>
   );
 }
 
@@ -1952,6 +2061,9 @@ function ReviewView({ data, setData, go }) {
   const [mode, setMode] = useState(saved.mode || 'mix');
   const [length, setLength] = useState(saved.length || 'n10');
   const [withRules, setWithRules] = useState(saved.withRules !== false);
+  const [onlyHard, setOnlyHard] = useState(!!saved.onlyHard);
+  const stats = useMemo(() => computeStats(reviews), [reviews]);
+  const isHard = (i) => !!(stats[i.id] && stats[i.id].difficult);
   const [session, setSession] = useState(null); // { queue, pos, startedAt, endsAt, results, requeued }
   const [answered, setAnswered] = useState(null);
   const [nowTs, setNowTs] = useState(Date.now());
@@ -1960,7 +2072,10 @@ function ReviewView({ data, setData, go }) {
   const inSelection = (i) => sel.includes('all')
     || (sel.includes(NO_TOPIC) && (!i.topicId || !validTopicIds.has(i.topicId)))
     || (i.topicId && sel.includes(i.topicId));
-  const pool = items.filter((i) => inSelection(i) && (withRules || i.type !== 'rule') && (mode !== 'cloze' || i.type === 'rule' || clozeOf(i)));
+  const fitsMode = (i) => inSelection(i) && (withRules || i.type !== 'rule') && (mode !== 'cloze' || i.type === 'rule' || clozeOf(i));
+  const hardInSelection = items.filter((i) => fitsMode(i) && isHard(i)).length;
+  const hardAll = items.filter(isHard);
+  const pool = items.filter((i) => fitsMode(i) && (!onlyHard || isHard(i)));
   const clozeCount = items.filter((i) => inSelection(i) && clozeOf(i)).length;
 
   useEffect(() => {
@@ -1984,7 +2099,7 @@ function ReviewView({ data, setData, go }) {
     if (!src.length) return;
     const count = L.cards ? Math.min(L.cards, src.length) : Math.max(src.length, 30);
     const queue = buildQueue(src, reviews, count).map((item) => ({ item, mode: pickMode(item, mode) }));
-    setData((d) => ({ ...d, settings: { ...d.settings, review: { topics: sel, mode, length, withRules } } }));
+    setData((d) => ({ ...d, settings: { ...d.settings, review: { topics: sel, mode, length, withRules, onlyHard } } }));
     setSession({ queue, pos: 0, startedAt: Date.now(), endsAt: L.minutes ? Date.now() + L.minutes * 60000 : null, timeMode: !!L.minutes, results: [], requeued: {} });
     setAnswered(null);
     setNowTs(Date.now());
@@ -2057,6 +2172,7 @@ function ReviewView({ data, setData, go }) {
           )}
           <div className="mt-5 flex flex-wrap gap-2">
             {wrongItems.length > 0 && <button onClick={() => start(wrongItems)} className="px-5 py-2.5 rounded-xl bg-red text-surface font-medium">Повторить только ошибки ({wrongItems.length})</button>}
+            {hardAll.length > 0 && <button onClick={() => start(hardAll)} className="px-5 py-2.5 rounded-xl border-2 border-red text-red font-medium">Все трудные карточки ({hardAll.length})</button>}
             <button onClick={() => start()} disabled={!pool.length} className="px-5 py-2.5 rounded-xl bg-indigo text-surface font-medium disabled:opacity-50">Ещё одно занятие</button>
             <button onClick={() => setSession(null)} className="px-5 py-2.5 rounded-xl border-2 border-line hover:border-indigo">К выбору темы</button>
           </div>
@@ -2131,6 +2247,13 @@ function ReviewView({ data, setData, go }) {
         <label className="mt-3 inline-flex items-center gap-2 text-sm">
           <input id="with-rules" type="checkbox" checked={withRules} onChange={(e) => setWithRules(e.target.checked)} className="w-4 h-4" /> Включать правила
         </label>
+        <div className="mt-3">
+          <button aria-pressed={onlyHard} onClick={() => setOnlyHard((v) => !v)} disabled={!hardInSelection && !onlyHard}
+            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm border-2 transition-all duration-200 disabled:opacity-50 ${onlyHard ? 'border-red bg-redSoft text-red font-medium' : 'border-line hover:border-red'}`}>
+            <Flame size={15} /> Только трудные <span className="tnum opacity-70">{hardInSelection}</span>
+          </button>
+          <p className="text-xs text-muted mt-1">Трудные — карточки с ошибкой среди трёх последних ответов. Уходят из списка после двух верных ответов подряд.</p>
+        </div>
       </Panel>
 
       <Panel>
@@ -2159,6 +2282,8 @@ function ReviewView({ data, setData, go }) {
           {pool.length ? `Карточек в подборке: ${pool.length}${L.cards && L.cards > pool.length ? ` — занятие будет из ${pool.length}` : ''}` : 'В подборке нет подходящих карточек. Выберите другие темы или режим.'}
         </span>
       </div>
+
+      <HistoryPanel reviews={reviews} />
     </div>
   );
 }
@@ -3637,6 +3762,7 @@ function App() {
   const [boot] = useState(loadData);
   const [data, setData] = useState(boot.data);
   const progress = data.progress;
+  const homeStats = useMemo(() => computeStats(data.reviews), [data.reviews]);
   const [saveFailed, setSaveFailed] = useState(false);
   const [toast, setToast] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -3719,7 +3845,7 @@ function App() {
               <AlertTriangle size={17} className="text-amber shrink-0 mt-0.5" /> <span>{storageNote} <span className="underline">Открыть «Мои данные»</span></span>
             </button>
           )}
-          {view === 'home' && <HomeView progress={progress} go={go} reset={() => setData((d) => ({ ...d, progress: {} }))} lastExportAt={data.meta.lastExportAt} itemsCount={data.items.length} />}
+          {view === 'home' && <HomeView progress={progress} go={go} reset={() => setData((d) => ({ ...d, progress: {} }))} lastExportAt={data.meta.lastExportAt} itemsCount={data.items.length} hardCount={data.items.filter((i) => { const st = homeStats[i.id]; return st && st.difficult; }).length} />}
           {view === 'data' && <DataView data={data} setData={setData} storageNote={storageNote} />}
           {view === 'base' && <MyBaseView data={data} setData={setData} />}
           {view === 'review' && <ReviewView data={data} setData={setData} go={go} />}
