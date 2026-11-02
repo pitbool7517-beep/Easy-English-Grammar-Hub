@@ -58,7 +58,7 @@ async function routeLibraries(page, { breakCdn = false } = {}) {
   const total = Number((header.match(/\/\s*(\d+)/) || [])[1]);
   check('App loads and shows progress counter', total > 0, `total ${total}`);
 
-  for (const label of ['Времена глаголов', 'Глагол TO BE', 'Притяжательный падеж', 'Артикли A / AN', 'Present Simple (+)', 'Проверка текста', 'Произношение', 'Мои данные', 'Главная']) {
+  for (const label of ['Времена глаголов', 'Глагол TO BE', 'Притяжательный падеж', 'Артикли A / AN', 'Present Simple', 'Проверка текста', 'Произношение', 'Мои данные', 'Главная']) {
     await page.click(`aside >> text=${label}`);
     await page.waitForTimeout(150);
   }
@@ -94,20 +94,23 @@ async function routeLibraries(page, { breakCdn = false } = {}) {
   const artIds = Object.keys(stored).filter((k) => /^a[rzf]\d+$/.test(k));
   check('Articles: all 22 answers counted', artIds.length === 22, `${artIds.length}`);
 
-  // 3. Present Simple: choose, type, find the error
-  await page.click('aside >> text=Present Simple (+)');
-  const psChoose = 'main section:has-text("Проверка 1: выберите форму")';
+  // 3. Present Simple (merged section): choose, type, find and fix — the original 23 tasks
+  await page.click('aside >> text=Present Simple');
+  await page.click('main [role=tab]:has-text("Упражнения")');
+  const psChoose = 'main section:has-text("1. Выберите форму")';
   for (const a of ['lives', 'play', 'watches', 'opens', 'drink', 'goes', 'work', 'studies', 'has', 'cries', 'live', 'plays']) await answer(a, psChoose);
   const typed = { pt1: 'studies', pt2: 'Fixes ', pt3: 'rains', pt4: 'have', pt5: 'does', pt6: 'leaves' };
   await page.fill('#in-pt1', 'studys'); await page.press('#in-pt1', 'Enter');
   check('Present Simple: wrong typed answer is rejected', !(await progressOf(page)).pt1);
   for (const [id, v] of Object.entries(typed)) { await page.fill(`#in-${id}`, v); await page.press(`#in-${id}`, 'Enter'); }
-  const psFix = page.locator('main div.border-t').filter({ has: page.locator('button[aria-label$="отметить как ошибку"]') });
-  const psWrong = [0, 0, 0, 1, 0];
-  for (let i = 0; i < 5; i++) await psFix.nth(i).locator('button[aria-label$="отметить как ошибку"]').nth(psWrong[i]).click();
+  const psFix = { pf1: [0, 'lives'], pf2: [0, 'go'], pf3: [0, 'watches'], pf4: [1, 'plays'], pf5: [0, 'has'] };
+  for (const [id, [w, fix]] of Object.entries(psFix)) {
+    await page.locator(`[data-q="${id}"] button[aria-label$="отметить как ошибку"]`).nth(w).click();
+    await page.fill(`#fix-${id}`, fix); await page.press(`#fix-${id}`, 'Enter');
+  }
   stored = await progressOf(page);
   const psIds = Object.keys(stored).filter((k) => /^p[stf]\d+$/.test(k));
-  check('Present Simple: all 23 answers counted (case/space tolerant)', psIds.length === 23, `${psIds.length}`);
+  check('Present Simple: all 23 original answers counted (case/space tolerant)', psIds.length === 23, `${psIds.length}`);
 
   // 4. Shuffle keeps progress
   await page.click('main >> text=Перемешать и пройти заново');
@@ -134,7 +137,7 @@ async function routeLibraries(page, { breakCdn = false } = {}) {
   // 7. Phone width: no horizontal scroll
   await page.setViewportSize({ width: 375, height: 800 });
   const wide = [];
-  for (const label of ['Артикли A / AN', 'Present Simple (+)', 'Мои данные', 'Главная']) {
+  for (const label of ['Артикли A / AN', 'Present Simple', 'Мои данные', 'Главная']) {
     await page.click('button[aria-label="Открыть меню разделов"]');
     await page.waitForTimeout(350);
     await page.click(`text=${label} >> visible=true`);

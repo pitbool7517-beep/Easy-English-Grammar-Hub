@@ -122,7 +122,7 @@ const Home = icon('Home'), Clock = icon('Clock'), Sparkles = icon('Sparkles'), Q
   SpellCheck = icon('SpellCheck'), Volume2 = icon('Volume2'), Loader2 = icon('Loader2'), Square = icon('Square'),
   Wand2 = icon('Wand2'), AlertTriangle = icon('AlertTriangle'),
   Menu = icon('Menu'), X = icon('X'), Languages = icon('Languages'), PlayCircle = icon('PlayCircle'),
-  TypeIcon = icon('Type'), PenLine = icon('PenLine'), SaveIcon = icon('Save'), Library = icon('Library'), RepeatIcon = icon('Repeat'), Flame = icon('Flame'), MinusCircle = icon('MinusCircle');
+  TypeIcon = icon('Type'), PenLine = icon('PenLine'), SaveIcon = icon('Save'), Library = icon('Library'), RepeatIcon = icon('Repeat'), Flame = icon('Flame');
 
 /* ---------- Данные ---------- */
 const TENSES = {
@@ -504,8 +504,7 @@ function HomeView({ progress, go, reset, lastExportAt, itemsCount, hardCount }) 
     { key: 'tobe', title: 'Глагол TO BE', desc: 'Конструктор: am, is или are', icon: Sparkles, t: 'indigo', done: TOBE_QUIZ.filter(q => progress[q.id]).length, total: TOBE_QUIZ.length },
     { key: 'possessive', title: 'Притяжательный падеж', desc: "Где ставить апостроф: 's или s'", icon: Quote, t: 'green', done: APOS.filter(q => progress[q.id]).length, total: APOS.length },
     { key: 'articles', title: 'Артикли A / AN', desc: 'Выбор по звуку, исключения и поиск ошибок', icon: TypeIcon, t: 'blue', done: [...AAN_QUIZ, ...ZERO_QUIZ, ...FIX_QUIZ].filter(q => progress[q.id]).length, total: ARTICLE_TOTAL },
-    { key: 'psimple', title: 'Present Simple (+)', desc: 'Окончания -s, -es, -ies: выбор, ввод, поиск ошибок', icon: PenLine, t: 'indigo', done: [...PS_QUIZ, ...PS_TYPE, ...PS_FIX].filter(q => progress[q.id]).length, total: PS_TOTAL },
-    { key: 'psneg', title: 'Present Simple: + и −', desc: "Утверждение и отрицание: don't / doesn't, перевод, итоговый тест", icon: MinusCircle, t: 'green', done: PN_ALL.filter(q => progress[q.id]).length, total: PN_TOTAL },
+    { key: 'psimple', title: 'Present Simple', desc: "Утверждение и отрицание: -s / -es, don't / doesn't, перевод, итоговый тест", icon: PenLine, t: 'indigo', done: PS_ALL.filter(q => progress[q.id]).length, total: PS_TOTAL },
   ];
   const r = 52, c = 2 * Math.PI * r;
   return (
@@ -529,7 +528,7 @@ function HomeView({ progress, go, reset, lastExportAt, itemsCount, hardCount }) 
             <p className="text-xs uppercase tracking-[0.12em] text-muted font-medium">Грамматика для начинающих · A1–A2</p>
           </div>
           <h2 className="font-display text-3xl sm:text-4xl font-semibold mt-2 leading-tight">Добро пожаловать в <span className="text-indigo">Grammar Hub</span></h2>
-          <p className="text-muted mt-3 max-w-[52ch]">Британский и американский английский с объяснениями на русском: шесть тем грамматики, понятные схемы, короткие проверки и тренажёры. Отвечайте на вопросы в каждом разделе — правильные ответы засчитываются в общий прогресс.</p>
+          <p className="text-muted mt-3 max-w-[52ch]">Британский и американский английский с объяснениями на русском: пять тем грамматики, понятные схемы, короткие проверки и тренажёры. Отвечайте на вопросы в каждом разделе — правильные ответы засчитываются в общий прогресс.</p>
           <button onClick={() => go('tenses')} className="mt-5 self-start inline-flex items-center gap-2 bg-indigo text-surface px-5 py-2.5 rounded-xl font-medium transition-transform duration-200 hover:-translate-y-0.5">
             Начать с времён <ArrowRight size={18} />
           </button>
@@ -1146,15 +1145,6 @@ function ArticlesView({ progress, onCorrect }) {
 }
 
 /* ---------- Present Simple: утвердительные предложения ---------- */
-const PS_RULES = [
-  { title: 'I / you / we / they + глагол без изменений', ex: ['I work', 'you play', 'they live'], note: 'Сюда же: my parents, the children, Anna and Kate — это «они».' },
-  { title: 'he / she / it + глагол с -s', ex: ['she works', 'he plays', 'it rains'], note: 'Сюда же: my mum, Tom, the shop, the dog — это «он / она / оно».' },
-  { title: '-es после s, ss, sh, ch, x, o', ex: ['watch → watches', 'fix → fixes', 'go → goes', 'do → does'], note: 'Так слово легче произнести: watches [ˈwɒtʃɪz].' },
-  { title: 'согласная + y → -ies, гласная + y → -s', ex: ['study → studies', 'cry → cries', 'play → plays', 'buy → buys'], note: 'Смотрим на букву перед y.' },
-  { title: 'have → has', ex: ['I have a car', 'she has a car'], note: 'Особая форма, её нужно просто запомнить. Похоже меняется do → does [dʌz].' },
-  { title: 'Когда используем', ex: ['always, usually, often', 'every day, on Mondays'], note: 'Привычки, факты, расписания. Наречия частоты ставим перед глаголом: She often reads.' },
-];
-
 const PS_SUBJECTS = [
   { s: 'I', third: false }, { s: 'You', third: false }, { s: 'He', third: true }, { s: 'She', third: true }, { s: 'It', third: true },
   { s: 'We', third: false }, { s: 'They', third: false }, { s: 'My mum', third: true, note: 'my mum = she' }, { s: 'The children', third: false, note: 'the children = they' },
@@ -1205,7 +1195,6 @@ const PS_FIX = [
   { id: 'pf5', text: 'Kate [haves] a dog, and her brothers [have] a parrot.', wrong: 0, fix: 'has', explain: 'have с she превращается в has. her brothers have — верно.' },
 ];
 
-const PS_TOTAL = PS_QUIZ.length + PS_TYPE.length + PS_FIX.length;
 
 function TypeQuestion({ q, index, solved, onCorrect }) {
   const [value, setValue] = useState('');
@@ -1241,117 +1230,7 @@ function TypeQuestion({ q, index, solved, onCorrect }) {
   );
 }
 
-function PresentSimpleView({ progress, onCorrect }) {
-  const [si, setSi] = useState(3);
-  const [vi, setVi] = useState(2);
-  const [round, setRound] = useState(0);
-  const [order, setOrder] = useState(() => ({ quiz: PS_QUIZ, type: PS_TYPE, fix: PS_FIX }));
-  const S = PS_SUBJECTS[si], V = PS_VERBS[vi];
-  const form = S.third ? V.f : V.v;
-  const sentence = `${S.s} ${form} ${V.rest}.`;
-  const solvedIn = (list) => list.filter((q) => progress[q.id]).length;
-  const restart = () => {
-    setOrder({ quiz: shuffled(PS_QUIZ), type: shuffled(PS_TYPE), fix: shuffled(PS_FIX) });
-    setRound((r) => r + 1);
-    window.scrollTo({ top: document.getElementById('ps-practice').offsetTop - 80, behavior: 'smooth' });
-  };
-  const ending = S.third ? (V.end === V.f ? V.f : V.end) : '';
-  const stem = ending ? form.slice(0, form.length - ending.length) : form;
-
-  return (
-    <div className="fade-in space-y-6">
-      <SectionTitle eyebrow="Раздел 5" title="Present Simple: утверждения">Практика утвердительных предложений: когда нужно окончание -s / -es / -ies, а когда глагол не меняется.</SectionTitle>
-
-      <HintButton id="hint-ps" label="Шпаргалка: правила Present Simple (+)">
-        <div className="grid gap-3 sm:grid-cols-2">
-          {PS_RULES.map((r) => (
-            <div key={r.title} className="rounded-xl bg-surface2 p-3">
-              <p className="font-medium">{r.title}</p>
-              <p className="text-sm mt-1" lang="en">{r.ex.map((e, i) => <span key={e}>{i > 0 && ' · '}<span className="text-indigo font-medium">{e}</span></span>)}</p>
-              <p className="text-sm text-muted mt-1">{r.note}</p>
-            </div>
-          ))}
-        </div>
-      </HintButton>
-
-      <Panel>
-        <h3 className="font-display text-xl font-semibold flex items-center gap-2"><Sparkles size={19} className="text-indigo" /> Конструктор: кто + что делает</h3>
-        <p className="text-sm text-muted mb-2 mt-3">1. Кто?</p>
-        <div className="flex flex-wrap gap-2">
-          {PS_SUBJECTS.map((x, i) => (
-            <button key={x.s} onClick={() => setSi(i)}
-              className={`px-3 py-1.5 rounded-xl border-2 transition-all duration-200 ${si === i ? 'bg-indigo border-indigo text-surface scale-105' : 'bg-surface2 border-line hover:border-indigo'}`} lang="en">{x.s}</button>
-          ))}
-        </div>
-        <p className="text-sm text-muted mb-2 mt-4">2. Глагол</p>
-        <div className="flex flex-wrap gap-2">
-          {PS_VERBS.map((x, i) => (
-            <button key={x.v} onClick={() => setVi(i)}
-              className={`px-3 py-1.5 rounded-lg text-sm border transition-all duration-200 ${vi === i ? 'border-blue bg-blueSoft text-blue font-medium' : 'border-line hover:border-blue'}`} lang="en">{x.v}</button>
-          ))}
-        </div>
-        <div className="mt-5 rounded-2xl bg-surface2 border border-line p-5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-xs uppercase tracking-wider text-muted">Готовое предложение</p>
-            <button onClick={() => sayEnglish(sentence)} className="inline-flex items-center gap-1.5 text-sm px-3 py-1 rounded-lg border border-line hover:border-indigo transition-colors"><Volume2 size={15} /> Послушать</button>
-          </div>
-          <p key={si + '-' + vi} className="fade-in mt-3 text-2xl font-medium" lang="en">
-            {S.s}{' '}
-            <span className={`pop inline-block px-2 rounded-lg ${S.third ? 'bg-greenSoft' : 'bg-blueSoft'}`}>
-              {stem}{ending && <span className="text-green font-bold">{ending}</span>}
-            </span>{' '}{V.rest}.
-          </p>
-          <p className="mt-3 text-sm">
-            {S.third
-              ? <>{S.note ? <span className="text-muted">{S.note}. </span> : null}С he / she / it глагол меняется. {V.rule}{SND_NOTE[V.snd] ? <span className="text-muted"> Произношение: {SND_NOTE[V.snd]}.</span> : null}</>
-              : <>{S.note ? <span className="text-muted">{S.note}. </span> : null}С I / you / we / they глагол <b>{V.v}</b> не меняется.</>}
-          </p>
-        </div>
-      </Panel>
-
-      <div id="ps-practice" className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-muted tnum">Решено в разделе: {solvedIn(PS_QUIZ) + solvedIn(PS_TYPE) + solvedIn(PS_FIX)} из {PS_TOTAL}</p>
-        <button onClick={restart} className="inline-flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-xl border-2 border-line hover:border-indigo transition-colors">
-          <RotateCcw size={15} /> Перемешать и пройти заново
-        </button>
-      </div>
-
-      <Panel>
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h3 className="font-display text-xl font-semibold flex items-center gap-2"><Target size={20} className="text-indigo" /> Проверка 1: выберите форму</h3>
-          <span className="text-xs text-muted tnum">{solvedIn(PS_QUIZ)} / {PS_QUIZ.length}</span>
-        </div>
-        <div key={'q' + round} className="mt-4 space-y-5">
-          {order.quiz.map((q, i) => <ChoiceQuestion key={q.id} q={q} index={i} options={q.options} solved={!!progress[q.id]} onCorrect={onCorrect} />)}
-        </div>
-      </Panel>
-
-      <Panel>
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h3 className="font-display text-xl font-semibold flex items-center gap-2"><Target size={20} className="text-indigo" /> Проверка 2: напишите сами</h3>
-          <span className="text-xs text-muted tnum">{solvedIn(PS_TYPE)} / {PS_TYPE.length}</span>
-        </div>
-        <p className="text-sm text-muted mt-1">Впишите глагол в нужной форме. В поле подсказан начальный глагол.</p>
-        <div key={'t' + round} className="mt-4 space-y-5">
-          {order.type.map((q, i) => <TypeQuestion key={q.id} q={q} index={i} solved={!!progress[q.id]} onCorrect={onCorrect} />)}
-        </div>
-      </Panel>
-
-      <Panel>
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h3 className="font-display text-xl font-semibold flex items-center gap-2"><Target size={20} className="text-indigo" /> Проверка 3: найдите ошибку</h3>
-          <span className="text-xs text-muted tnum">{solvedIn(PS_FIX)} / {PS_FIX.length}</span>
-        </div>
-        <p className="text-sm text-muted mt-1">В каждом предложении один глагол стоит в неправильной форме. Нажмите на него.</p>
-        <div key={'f' + round} className="mt-4 space-y-5">
-          {order.fix.map((q, i) => <FixQuestion key={q.id} q={q} index={i} solved={!!progress[q.id]} onCorrect={onCorrect} label="глагол" hint="Проверьте, кто выполняет действие." />)}
-        </div>
-      </Panel>
-    </div>
-  );
-}
-
-/* ---------- Present Simple — Positive & Negative (утверждение и отрицание) ---------- */
+/* ---------- Present Simple: отрицание, перевод, итоговый тест (часть объединённого раздела) ---------- */
 const PN_ENDINGS = [
   { rule: 'Большинство глаголов: + s', ex: [['work', 'works'], ['play', 'plays'], ['read', 'reads']] },
   { rule: 'На -s, -ss, -sh, -ch, -x, -o: + es', ex: [['watch', 'watches'], ['wash', 'washes'], ['go', 'goes'], ['do', 'does']] },
@@ -1369,16 +1248,11 @@ const PN_EXAMPLES = [
 ];
 
 const PN_CHOOSE = [
-  { id: 'pn-c1', before: 'She', after: 'in a hospital.', options: ['work', 'works'], answer: 'works', explain: 'she → глагол с -s: works.' },
   { id: 'pn-c2', before: 'I', after: 'like horror films.', options: ["don't", "doesn't"], answer: "don't", explain: "С I отрицание через don't." },
   { id: 'pn-c3', before: 'He', after: 'speak French.', options: ["don't", "doesn't"], answer: "doesn't", explain: "С he отрицание через doesn't." },
   { id: 'pn-c4', before: "My dad doesn't", after: 'coffee.', options: ['drink', 'drinks'], answer: 'drink', explain: "После doesn't глагол без -s: doesn't drink." },
-  { id: 'pn-c5', before: 'They', after: 'English at school.', options: ['study', 'studies'], answer: 'study', explain: 'С they глагол не меняется.' },
-  { id: 'pn-c6', before: 'Tom', after: 'his car on Saturdays.', options: ['washs', 'washes'], answer: 'washes', explain: 'wash оканчивается на -sh → washes.' },
   { id: 'pn-c7', before: 'We', after: 'live in Moscow.', options: ["don't", "doesn't"], answer: "don't", explain: "С we отрицание через don't." },
-  { id: 'pn-c8', before: 'The baby', after: 'at night.', options: ['crys', 'cries'], answer: 'cries', explain: 'Согласная + y: cry → cries.' },
   { id: 'pn-c9', before: "It doesn't", after: 'much in summer.', options: ['rain', 'rains'], answer: 'rain', explain: "После doesn't глагол без -s: doesn't rain." },
-  { id: 'pn-c10', before: 'My sister', after: 'two children.', options: ['have', 'has'], answer: 'has', explain: 'have с she превращается в has.' },
 ];
 
 // Сделайте отрицание. accept — все правильные варианты (краткие и полные формы проверяются одинаково)
@@ -1395,7 +1269,6 @@ const PN_TRANSFORM = [
 const PN_FIX = [
   { id: 'pn-f1', text: '[She] [don\'t] [like] milk.', wrong: 1, fix: ["doesn't", 'does not'], explain: "С she — doesn't, а не don't." },
   { id: 'pn-f2', text: '[He] [doesn\'t] [plays] tennis.', wrong: 2, fix: ['play'], explain: "После doesn't глагол без -s: doesn't play." },
-  { id: 'pn-f3', text: '[My] [parents] [works] in a school.', wrong: 2, fix: ['work'], explain: 'my parents = they → work без -s.' },
   { id: 'pn-f4', text: '[It] [rain] [a] lot in autumn.', wrong: 1, fix: ['rains'], explain: 'it → глагол с -s: rains.' },
   { id: 'pn-f5', text: '[We] [doesn\'t] [have] a dog.', wrong: 1, fix: ["don't", 'do not'], explain: "С we — don't." },
   { id: 'pn-f6', text: '[Kate] [studys] [French] at university.', wrong: 1, fix: ['studies'], explain: 'Согласная + y: study → studies.' },
@@ -1422,8 +1295,10 @@ const PN_TEST = [
   { id: 'pn-q9', q: 'Which sentence is correct?', options: ["She doesn't works.", "She don't work.", "She doesn't work."], answer: "She doesn't work.", rule: "she + doesn't + V1 без -s." },
   { id: 'pn-q10', q: 'We ___ football on Sundays.', options: ['plays', "doesn't play", 'play'], answer: 'play', rule: 'С we глагол без -s; doesn\'t с we не используется.' },
 ];
-const PN_ALL = [...PN_CHOOSE, ...PN_TRANSFORM, ...PN_FIX, ...PN_TRANSLATE, ...PN_TEST];
-const PN_TOTAL = PN_ALL.length;
+// Объединённый раздел Present Simple: старые задания (ps*, pt*, pf* — прогресс сохраняется) + отрицание, перевод и тест (pn-*)
+const PS_FIX_ALL = [...PS_FIX.map((q) => ({ ...q, fix: Array.isArray(q.fix) ? q.fix : [q.fix] })), ...PN_FIX];
+const PS_ALL = [...PS_QUIZ, ...PS_TYPE, ...PN_CHOOSE, ...PN_TRANSFORM, ...PS_FIX_ALL, ...PN_TRANSLATE, ...PN_TEST];
+const PS_TOTAL = PS_ALL.length;
 
 // Сравнение предложений: регистр, пробелы, точка в конце, краткие/полные формы не важны
 function sentenceKey(s) {
@@ -1589,137 +1464,247 @@ function FinalTest({ progress, onCorrect }) {
   );
 }
 
-function PresentNegView({ progress, onCorrect }) {
-  const solvedIn = (list) => list.filter((q) => progress[q.id]).length;
+function PresentSimpleView({ progress, onCorrect }) {
+  const [tab, setTab] = useState('rules');
+  const [si, setSi] = useState(3);
+  const [vi, setVi] = useState(2);
+  const [sign, setSign] = useState('+');
   const [round, setRound] = useState(0);
-  const [order, setOrder] = useState(() => ({ choose: PN_CHOOSE, transform: PN_TRANSFORM, fix: PN_FIX, translate: PN_TRANSLATE }));
+  const [order, setOrder] = useState(() => ({ quiz: PS_QUIZ, type: PS_TYPE, neg: PN_CHOOSE, transform: PN_TRANSFORM, fix: PS_FIX_ALL, translate: PN_TRANSLATE }));
+  const S = PS_SUBJECTS[si], V = PS_VERBS[vi];
+  const neg = sign === '−';
+  const aux = S.third ? "doesn't" : "don't";
+  const form = neg ? V.v : (S.third ? V.f : V.v);
+  const sentence = neg ? `${S.s} ${aux} ${V.v} ${V.rest}.` : `${S.s} ${form} ${V.rest}.`;
+  const solvedIn = (list) => list.filter((q) => progress[q.id]).length;
+  const ending = !neg && S.third ? (V.end === V.f ? V.f : V.end) : '';
+  const stem = ending ? form.slice(0, form.length - ending.length) : form;
+  const practice = [...PS_QUIZ, ...PS_TYPE, ...PN_CHOOSE, ...PN_TRANSFORM, ...PS_FIX_ALL, ...PN_TRANSLATE];
   const restart = () => {
-    setOrder({ choose: shuffled(PN_CHOOSE), transform: shuffled(PN_TRANSFORM), fix: shuffled(PN_FIX), translate: shuffled(PN_TRANSLATE) });
+    setOrder({ quiz: shuffled(PS_QUIZ), type: shuffled(PS_TYPE), neg: shuffled(PN_CHOOSE), transform: shuffled(PN_TRANSFORM), fix: shuffled(PS_FIX_ALL), translate: shuffled(PN_TRANSLATE) });
     setRound((r) => r + 1);
-    const el = document.getElementById('pn-practice');
-    if (el) window.scrollTo({ top: el.offsetTop - 80, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
-  const head = (title, list) => (
+  const openTab = (k) => { setTab(k); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const head = (num, title, list) => (
     <div className="flex flex-wrap items-baseline justify-between gap-2">
-      <h3 className="font-display text-xl font-semibold flex items-center gap-2"><Target size={20} className="text-indigo" /> {title}</h3>
+      <h3 className="font-display text-xl font-semibold flex items-center gap-2"><Target size={20} className="text-indigo" /> {num}. {title}</h3>
       <span className="text-xs text-muted tnum">{solvedIn(list)} / {list.length}</span>
     </div>
   );
+  const TABS = [
+    { k: 'rules', label: 'Правила', note: 'теория и конструктор' },
+    { k: 'practice', label: 'Упражнения', note: `${solvedIn(practice)} / ${practice.length}` },
+    { k: 'test', label: 'Итоговый тест', note: `${solvedIn(PN_TEST)} / ${PN_TEST.length}` },
+  ];
 
   return (
     <div className="fade-in space-y-6">
-      <SectionTitle eyebrow="Раздел 6" title="Present Simple: утверждение и отрицание">Positive & Negative. Как сказать «я делаю» и «я не делаю», что делать с окончанием -s и когда нужно don't, а когда doesn't.</SectionTitle>
+      <SectionTitle eyebrow="Раздел 5" title="Present Simple">Утверждение и отрицание: когда нужно окончание -s / -es, а когда don't или doesn't. Решено в разделе: {solvedIn(PS_ALL)} из {PS_ALL.length}.</SectionTitle>
 
-      {/* Теория */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Panel>
-          <p className="text-xs uppercase tracking-wider text-green font-semibold">Утверждение (+)</p>
-          <div className="mt-3 space-y-2 font-mono text-sm">
-            <p className="rounded-xl bg-blueSoft px-3 py-2"><b>I / You / We / They</b> + V1</p>
-            <p className="rounded-xl bg-greenSoft px-3 py-2"><b>He / She / It</b> + V1 + <b className="text-green">s / es</b></p>
-          </div>
-          <p className="text-sm mt-3" lang="en">I <b>work</b>. · She <b>work<span className="text-green">s</span></b>.</p>
-          <p className="text-sm text-muted">Я работаю. · Она работает.</p>
-        </Panel>
-        <Panel>
-          <p className="text-xs uppercase tracking-wider text-red font-semibold">Отрицание (−)</p>
-          <div className="mt-3 space-y-2 font-mono text-sm">
-            <p className="rounded-xl bg-blueSoft px-3 py-2"><b>I / You / We / They</b> + <b>don't</b> + V1</p>
-            <p className="rounded-xl bg-redSoft px-3 py-2"><b>He / She / It</b> + <b>doesn't</b> + V1</p>
-          </div>
-          <p className="text-sm mt-3" lang="en">I <b>don't work</b>. · She <b>doesn't work</b>.</p>
-          <p className="text-sm text-muted">Я не работаю. · Она не работает.</p>
-          <p className="text-xs text-muted mt-2">don't = do not, doesn't = does not</p>
-        </Panel>
+      <div className="grid grid-cols-3 gap-2" role="tablist" aria-label="Части раздела">
+        {TABS.map((t) => (
+          <button key={t.k} role="tab" aria-selected={tab === t.k} onClick={() => openTab(t.k)}
+            className={`rounded-xl border-2 px-2 py-2.5 text-center transition-all duration-200 ${tab === t.k ? 'border-indigo bg-indigoSoft' : 'border-line bg-surface hover:border-indigo'}`}>
+            <span className={`block font-medium text-sm sm:text-base ${tab === t.k ? 'text-indigo' : ''}`}>{t.label}</span>
+            <span className="block text-xs text-muted tnum mt-0.5">{t.note}</span>
+          </button>
+        ))}
       </div>
 
-      <div className="rounded-2xl border-2 border-red bg-redSoft p-4 flex gap-3 items-start" role="note">
-        <AlertTriangle size={22} className="text-red shrink-0 mt-0.5" />
-        <div>
-          <p className="font-semibold">Главное правило отрицания</p>
-          <p className="mt-1">После <b>doesn't</b> основной глагол — <b>без -s / -es</b>. Окончание «переходит» в doesn't (does = do + es).</p>
-          <p className="mt-2" lang="en">She <span className="line-through text-red">doesn't works</span> → She <b className="text-green">doesn't work</b>.</p>
-          <p lang="en">He <span className="line-through text-red">doesn't watches</span> → He <b className="text-green">doesn't watch</b>.</p>
-        </div>
-      </div>
+      {tab === 'rules' && (
+        <div className="fade-in space-y-6">
+          <div className="grid gap-4 md:grid-cols-2">
+            <Panel>
+              <p className="text-xs uppercase tracking-wider text-green font-semibold">Утверждение (+)</p>
+              <div className="mt-3 space-y-2 font-mono text-sm">
+                <p className="rounded-xl bg-blueSoft px-3 py-2"><b>I / You / We / They</b> + V1</p>
+                <p className="rounded-xl bg-greenSoft px-3 py-2"><b>He / She / It</b> + V1 + <b className="text-green">s / es</b></p>
+              </div>
+              <p className="text-sm mt-3" lang="en">I <b>work</b>. · She <b>work<span className="text-green">s</span></b>.</p>
+              <p className="text-sm text-muted">Я работаю. · Она работает.</p>
+              <p className="text-xs text-muted mt-2">he / she / it — это и my mum, Tom, the shop, the dog. they — это my parents, Anna and Kate.</p>
+            </Panel>
+            <Panel>
+              <p className="text-xs uppercase tracking-wider text-red font-semibold">Отрицание (−)</p>
+              <div className="mt-3 space-y-2 font-mono text-sm">
+                <p className="rounded-xl bg-blueSoft px-3 py-2"><b>I / You / We / They</b> + <b>don't</b> + V1</p>
+                <p className="rounded-xl bg-redSoft px-3 py-2"><b>He / She / It</b> + <b>doesn't</b> + V1</p>
+              </div>
+              <p className="text-sm mt-3" lang="en">I <b>don't work</b>. · She <b>doesn't work</b>.</p>
+              <p className="text-sm text-muted">Я не работаю. · Она не работает.</p>
+              <p className="text-xs text-muted mt-2">don't = do not, doesn't = does not</p>
+            </Panel>
+          </div>
 
-      <Panel>
-        <h3 className="font-display text-xl font-semibold">Окончания -s и -es</h3>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          {PN_ENDINGS.map((e) => (
-            <div key={e.rule} className="rounded-xl bg-surface2 p-3">
-              <p className="font-medium text-sm">{e.rule}</p>
-              <p className="mt-1 text-sm" lang="en">{e.ex.map(([a, b], i) => <span key={a}>{i > 0 && ' · '}{a} → <b className="text-indigo">{b}</b></span>)}</p>
+          <div className="rounded-2xl border-2 border-red bg-redSoft p-4 flex gap-3 items-start" role="note">
+            <AlertTriangle size={22} className="text-red shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold">Главное правило отрицания</p>
+              <p className="mt-1">После <b>doesn't</b> основной глагол — <b>без -s / -es</b>. Окончание «переходит» в doesn't (does = do + es).</p>
+              <p className="mt-2" lang="en">She <span className="line-through text-red">doesn't works</span> → She <b className="text-green">doesn't work</b>.</p>
+              <p lang="en">He <span className="line-through text-red">doesn't watches</span> → He <b className="text-green">doesn't watch</b>.</p>
             </div>
-          ))}
+          </div>
+
+          <Panel>
+            <h3 className="font-display text-xl font-semibold">Окончания -s и -es</h3>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              {PN_ENDINGS.map((e) => (
+                <div key={e.rule} className="rounded-xl bg-surface2 p-3">
+                  <p className="font-medium text-sm">{e.rule}</p>
+                  <p className="mt-1 text-sm" lang="en">{e.ex.map(([a, b], i) => <span key={a}>{i > 0 && ' · '}{a} → <b className="text-indigo">{b}</b></span>)}</p>
+                </div>
+              ))}
+              <div className="rounded-xl bg-surface2 p-3">
+                <p className="font-medium text-sm">Как звучит окончание</p>
+                <p className="mt-1 text-sm"><span lang="en">works</span> [s] — после глухого звука · <span lang="en">plays</span> [z] — после звонкого · <span lang="en">watches</span> [ɪz] — после шипящего</p>
+              </div>
+            </div>
+          </Panel>
+
+          <Panel>
+            <h3 className="font-display text-xl font-semibold">Когда используем</h3>
+            <p className="mt-2">Привычки, факты, расписания — то, что происходит обычно, регулярно, всегда.</p>
+            <p className="text-sm mt-2">Слова-подсказки: <span lang="en" className="text-indigo font-medium">always, usually, often, sometimes, never, every day, on Mondays</span>.</p>
+            <p className="text-sm text-muted mt-1">Наречия частоты ставим перед глаголом: <span lang="en">She <b>often</b> reads.</span> — Она часто читает.</p>
+            <h3 className="font-display text-xl font-semibold mt-5">Примеры с переводом</h3>
+            <ul className="mt-3 space-y-2">
+              {PN_EXAMPLES.map((x) => (
+                <li key={x.en} className="flex gap-3 items-start">
+                  <span className={`w-7 h-7 shrink-0 rounded-lg flex items-center justify-center font-bold ${x.sign === '+' ? 'bg-greenSoft text-green' : 'bg-redSoft text-red'}`} aria-label={x.sign === '+' ? 'утверждение' : 'отрицание'}>{x.sign}</span>
+                  <span className="min-w-0">
+                    <span className="block font-medium" lang="en">{x.en}</span>
+                    <span className="block text-sm text-muted">{x.ru}</span>
+                  </span>
+                  <button onClick={() => sayEnglish(x.en)} aria-label={`Послушать: ${x.en}`} className="ml-auto w-8 h-8 shrink-0 rounded-lg flex items-center justify-center hover:bg-surface2 text-muted"><Volume2 size={16} /></button>
+                </li>
+              ))}
+            </ul>
+          </Panel>
+
+          <Panel>
+            <h3 className="font-display text-xl font-semibold flex items-center gap-2"><Sparkles size={19} className="text-indigo" /> Конструктор предложений</h3>
+            <p className="text-sm text-muted mb-2 mt-3">1. Утверждение или отрицание?</p>
+            <div className="inline-flex bg-surface2 rounded-xl p-1 border border-line" role="radiogroup" aria-label="Тип предложения">
+              {[['+', 'Утверждение (+)'], ['−', 'Отрицание (−)']].map(([k, l]) => (
+                <button key={k} role="radio" aria-checked={sign === k} onClick={() => setSign(k)}
+                  className={`px-3 py-1.5 rounded-lg text-sm transition-all duration-200 ${sign === k ? 'bg-surface shadow-sm font-medium ' + (k === '+' ? 'text-green' : 'text-red') : 'text-muted'}`}>{l}</button>
+              ))}
+            </div>
+            <p className="text-sm text-muted mb-2 mt-4">2. Кто?</p>
+            <div className="flex flex-wrap gap-2">
+              {PS_SUBJECTS.map((x, i) => (
+                <button key={x.s} onClick={() => setSi(i)}
+                  className={`px-3 py-1.5 rounded-xl border-2 transition-all duration-200 ${si === i ? 'bg-indigo border-indigo text-surface scale-105' : 'bg-surface2 border-line hover:border-indigo'}`} lang="en">{x.s}</button>
+              ))}
+            </div>
+            <p className="text-sm text-muted mb-2 mt-4">3. Глагол</p>
+            <div className="flex flex-wrap gap-2">
+              {PS_VERBS.map((x, i) => (
+                <button key={x.v} onClick={() => setVi(i)}
+                  className={`px-3 py-1.5 rounded-lg text-sm border transition-all duration-200 ${vi === i ? 'border-blue bg-blueSoft text-blue font-medium' : 'border-line hover:border-blue'}`} lang="en">{x.v}</button>
+              ))}
+            </div>
+            <div className="mt-5 rounded-2xl bg-surface2 border border-line p-5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs uppercase tracking-wider text-muted">Готовое предложение</p>
+                <button onClick={() => sayEnglish(sentence)} className="inline-flex items-center gap-1.5 text-sm px-3 py-1 rounded-lg border border-line hover:border-indigo transition-colors"><Volume2 size={15} /> Послушать</button>
+              </div>
+              <p className="sr-only" lang="en" data-sentence>{sentence}</p>
+              <p key={si + '-' + vi + sign} className="fade-in mt-3 text-2xl font-medium" lang="en" aria-hidden="true">
+                {S.s}{' '}
+                {neg && <><span className="pop inline-block px-2 rounded-lg bg-redSoft text-red font-bold">{aux}</span>{' '}</>}
+                <span className={`pop inline-block px-2 rounded-lg ${neg ? 'bg-blueSoft' : S.third ? 'bg-greenSoft' : 'bg-blueSoft'}`}>
+                  {stem}{ending && <span className="text-green font-bold">{ending}</span>}
+                </span>{' '}{V.rest}.
+              </p>
+              <p className="mt-3 text-sm">
+                {S.note ? <span className="text-muted">{S.note}. </span> : null}
+                {neg
+                  ? (S.third ? <>С he / she / it — <b>doesn't</b>, а глагол <b>{V.v}</b> без окончания <span className="text-muted">(не {V.f})</span>.</> : <>С I / you / we / they — <b>don't</b> и глагол <b>{V.v}</b>.</>)
+                  : (S.third ? <>С he / she / it глагол меняется. {V.rule}{SND_NOTE[V.snd] ? <span className="text-muted"> Произношение: {SND_NOTE[V.snd]}.</span> : null}</> : <>С I / you / we / they глагол <b>{V.v}</b> не меняется.</>)}
+              </p>
+            </div>
+          </Panel>
+
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => openTab('practice')} className="inline-flex items-center gap-2 bg-indigo text-surface px-5 py-2.5 rounded-xl font-medium transition-transform hover:-translate-y-0.5">К упражнениям <ArrowRight size={18} /></button>
+          </div>
         </div>
-        <h3 className="font-display text-xl font-semibold mt-5">Примеры с переводом</h3>
-        <ul className="mt-3 space-y-2">
-          {PN_EXAMPLES.map((x) => (
-            <li key={x.en} className="flex gap-3 items-start">
-              <span className={`w-7 h-7 shrink-0 rounded-lg flex items-center justify-center font-bold ${x.sign === '+' ? 'bg-greenSoft text-green' : 'bg-redSoft text-red'}`} aria-label={x.sign === '+' ? 'утверждение' : 'отрицание'}>{x.sign}</span>
-              <span className="min-w-0">
-                <span className="block font-medium" lang="en">{x.en}</span>
-                <span className="block text-sm text-muted">{x.ru}</span>
-              </span>
-              <button onClick={() => sayEnglish(x.en)} aria-label={`Послушать: ${x.en}`} className="ml-auto w-8 h-8 shrink-0 rounded-lg flex items-center justify-center hover:bg-surface2 text-muted"><Volume2 size={16} /></button>
-            </li>
-          ))}
-        </ul>
-      </Panel>
+      )}
 
-      {/* Упражнения */}
-      <div id="pn-practice" className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-muted tnum">Решено в разделе: {solvedIn(PN_ALL)} из {PN_TOTAL}</p>
-        <button onClick={restart} className="inline-flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-xl border-2 border-line hover:border-indigo transition-colors">
-          <RotateCcw size={15} /> Перемешать упражнения
-        </button>
-      </div>
+      {tab === 'practice' && (
+        <div className="fade-in space-y-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-muted">Сначала утверждение, потом отрицание, в конце — смешанные задания.</p>
+            <button onClick={restart} className="inline-flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-xl border-2 border-line hover:border-indigo transition-colors">
+              <RotateCcw size={15} /> Перемешать и пройти заново
+            </button>
+          </div>
 
-      <Panel>
-        {head('Упражнение 1: выберите форму', PN_CHOOSE)}
-        <div key={'c' + round} className="mt-4 space-y-5">
-          {order.choose.map((q, i) => <ChoiceQuestion key={q.id} q={q} index={i} options={q.options} solved={!!progress[q.id]} onCorrect={onCorrect} />)}
+          <p className="text-xs uppercase tracking-wider text-green font-semibold">Утверждение (+)</p>
+          <Panel>
+            {head(1, 'Выберите форму', PS_QUIZ)}
+            <div key={'q' + round} className="mt-4 space-y-5">
+              {order.quiz.map((q, i) => <ChoiceQuestion key={q.id} q={q} index={i} options={q.options} solved={!!progress[q.id]} onCorrect={onCorrect} />)}
+            </div>
+          </Panel>
+          <Panel>
+            {head(2, 'Напишите форму сами', PS_TYPE)}
+            <p className="text-sm text-muted mt-1">Впишите глагол в нужной форме. В поле подсказан начальный глагол.</p>
+            <div key={'t' + round} className="mt-4 space-y-5">
+              {order.type.map((q, i) => <TypeQuestion key={q.id} q={q} index={i} solved={!!progress[q.id]} onCorrect={onCorrect} />)}
+            </div>
+          </Panel>
+
+          <p className="text-xs uppercase tracking-wider text-red font-semibold">Отрицание (−)</p>
+          <Panel>
+            {head(3, "Don't или doesn't?", PN_CHOOSE)}
+            <div key={'n' + round} className="mt-4 space-y-5">
+              {order.neg.map((q, i) => <ChoiceQuestion key={q.id} q={q} index={i} options={q.options} solved={!!progress[q.id]} onCorrect={onCorrect} />)}
+            </div>
+          </Panel>
+          <Panel>
+            {head(4, 'Сделайте отрицание', PN_TRANSFORM)}
+            <p className="text-sm text-muted mt-1">Напишите предложение целиком. Можно don't / doesn't или do not / does not.</p>
+            <div key={'tr' + round} className="mt-4 space-y-5">
+              {order.transform.map((q, i) => (
+                <SentenceQuestion key={q.id} q={q} index={i} solved={!!progress[q.id]} onCorrect={onCorrect} placeholder="Отрицательное предложение"
+                  prompt={<p className="text-lg" lang="en"><span className="text-green font-bold mr-2">+</span>{q.from}</p>} />
+              ))}
+            </div>
+          </Panel>
+
+          <p className="text-xs uppercase tracking-wider text-indigo font-semibold">Смешанные (+ и −)</p>
+          <Panel>
+            {head(5, 'Найдите и исправьте ошибку', PS_FIX_ALL)}
+            <p className="text-sm text-muted mt-1">Сначала нажмите на неверное слово, затем впишите правильный вариант.</p>
+            <div key={'f' + round} className="mt-4 space-y-5">
+              {order.fix.map((q, i) => <FindFixQuestion key={q.id} q={q} index={i} solved={!!progress[q.id]} onCorrect={onCorrect} />)}
+            </div>
+          </Panel>
+          <Panel>
+            {head(6, 'Переведите на английский', PN_TRANSLATE)}
+            <p className="text-sm text-muted mt-1">Короткие предложения. Подсказка со словами появится после первой ошибки.</p>
+            <div key={'r' + round} className="mt-4 space-y-5">
+              {order.translate.map((q, i) => (
+                <SentenceQuestion key={q.id} q={q} index={i} solved={!!progress[q.id]} onCorrect={onCorrect} placeholder="Перевод на английский"
+                  prompt={<p className="text-lg flex items-center gap-2"><Flag code="ru" className="w-5 h-3.5" /> {q.ru}</p>} />
+              ))}
+            </div>
+          </Panel>
+          <button onClick={() => openTab('test')} className="inline-flex items-center gap-2 bg-indigo text-surface px-5 py-2.5 rounded-xl font-medium transition-transform hover:-translate-y-0.5">К итоговому тесту <ArrowRight size={18} /></button>
         </div>
-      </Panel>
+      )}
 
-      <Panel>
-        {head('Упражнение 2: сделайте отрицание', PN_TRANSFORM)}
-        <p className="text-sm text-muted mt-1">Напишите предложение целиком. Можно don't / doesn't или do not / does not.</p>
-        <div key={'t' + round} className="mt-4 space-y-5">
-          {order.transform.map((q, i) => (
-            <SentenceQuestion key={q.id} q={q} index={i} solved={!!progress[q.id]} onCorrect={onCorrect} placeholder="Отрицательное предложение"
-              prompt={<p className="text-lg" lang="en"><span className="text-green font-bold mr-2">+</span>{q.from}</p>} />
-          ))}
-        </div>
-      </Panel>
-
-      <Panel>
-        {head('Упражнение 3: найдите и исправьте ошибку', PN_FIX)}
-        <p className="text-sm text-muted mt-1">Сначала нажмите на неверное слово, затем впишите правильный вариант.</p>
-        <div key={'f' + round} className="mt-4 space-y-5">
-          {order.fix.map((q, i) => <FindFixQuestion key={q.id} q={q} index={i} solved={!!progress[q.id]} onCorrect={onCorrect} />)}
-        </div>
-      </Panel>
-
-      <Panel>
-        {head('Упражнение 4: переведите на английский', PN_TRANSLATE)}
-        <p className="text-sm text-muted mt-1">Короткие предложения. Подсказка со словами появится после первой ошибки.</p>
-        <div key={'r' + round} className="mt-4 space-y-5">
-          {order.translate.map((q, i) => (
-            <SentenceQuestion key={q.id} q={q} index={i} solved={!!progress[q.id]} onCorrect={onCorrect} placeholder="Перевод на английский"
-              prompt={<p className="text-lg flex items-center gap-2"><Flag code="ru" className="w-5 h-3.5" /> {q.ru}</p>} />
-          ))}
-        </div>
-      </Panel>
-
-      <FinalTest progress={progress} onCorrect={onCorrect} />
+      {tab === 'test' && <div className="fade-in"><FinalTest progress={progress} onCorrect={onCorrect} /></div>}
     </div>
   );
 }
 
 /* ---------- Общий прогресс ---------- */
-const ALL_QUIZ_IDS = [...TENSE_QUIZ, ...TOBE_QUIZ, ...APOS, ...AAN_QUIZ, ...ZERO_QUIZ, ...FIX_QUIZ, ...PS_QUIZ, ...PS_TYPE, ...PS_FIX, ...PN_ALL].map((q) => q.id);
+const ALL_QUIZ_IDS = [...TENSE_QUIZ, ...TOBE_QUIZ, ...APOS, ...AAN_QUIZ, ...ZERO_QUIZ, ...FIX_QUIZ, ...PS_ALL].map((q) => q.id);
 const TOTAL = ALL_QUIZ_IDS.length;
 // Считаем только задания, которые есть в приложении сейчас (старые записи не ломают счётчик)
 function countSolved(progress) { return ALL_QUIZ_IDS.filter((id) => progress[id]).length; }
@@ -4215,8 +4200,7 @@ const NAV_GROUPS = [
     { key: 'tobe', label: 'Глагол TO BE', icon: Sparkles },
     { key: 'possessive', label: 'Притяжательный падеж', icon: Quote },
     { key: 'articles', label: 'Артикли A / AN', icon: TypeIcon },
-    { key: 'psimple', label: 'Present Simple (+)', icon: PenLine },
-    { key: 'psneg', label: 'Present Simple: + и −', icon: MinusCircle },
+    { key: 'psimple', label: 'Present Simple', icon: PenLine },
   ] },
   { title: 'Тренажёры', items: [
     { key: 'checker', label: 'Проверка текста', icon: SpellCheck },
@@ -4236,8 +4220,7 @@ function NavList({ view, go, progress }) {
     tobe: [TOBE_QUIZ.filter((q) => progress[q.id]).length, TOBE_QUIZ.length],
     possessive: [APOS.filter((q) => progress[q.id]).length, APOS.length],
     articles: [[...AAN_QUIZ, ...ZERO_QUIZ, ...FIX_QUIZ].filter((q) => progress[q.id]).length, ARTICLE_TOTAL],
-    psimple: [[...PS_QUIZ, ...PS_TYPE, ...PS_FIX].filter((q) => progress[q.id]).length, PS_TOTAL],
-    psneg: [PN_ALL.filter((q) => progress[q.id]).length, PN_TOTAL],
+    psimple: [PS_ALL.filter((q) => progress[q.id]).length, PS_TOTAL],
   };
   return (
     <nav aria-label="Разделы" className="flex flex-col gap-4">
@@ -4379,7 +4362,6 @@ function App() {
           {view === 'possessive' && <PossessiveView progress={progress} onCorrect={onCorrect} />}
           {view === 'articles' && <ArticlesView progress={progress} onCorrect={onCorrect} />}
           {view === 'psimple' && <PresentSimpleView progress={progress} onCorrect={onCorrect} />}
-          {view === 'psneg' && <PresentNegView progress={progress} onCorrect={onCorrect} />}
           {view === 'checker' && <CheckerView />}
           {view === 'pronounce' && <PronounceView />}
         </main>
