@@ -4685,8 +4685,8 @@ function App() {
             {menuOpen ? <X size={21} /> : <TeaMenuIcon size={22} />}
           </button>
           <button onClick={() => go('home')} className="flex items-center gap-2.5 min-w-0">
-            <span className="relative w-9 h-9 rounded-xl bg-indigo text-surface flex items-center justify-center shrink-0">
-              <BookOpen size={19} />
+            <span className="relative w-9 h-9 rounded-xl bg-indigo text-surface flex items-center justify-center shrink-0" data-logo>
+              <span aria-hidden="true" className="font-display font-bold text-[15px] leading-none" style={{ letterSpacing: '-0.06em', color: 'var(--surface)' }}>EE</span>
             </span>
             <span className="min-w-0 text-left">
               <span className="block font-display text-lg font-semibold leading-tight">Easy English</span>

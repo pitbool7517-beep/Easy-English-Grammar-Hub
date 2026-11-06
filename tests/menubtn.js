@@ -131,6 +131,25 @@ async function state(page) {
     }
   }
 
+  // Logo square next to the menu button: "EE" monogram, readable in both themes
+  for (const scheme of ['light', 'dark']) {
+    const c2 = await browser.newContext({ viewport: { width: 375, height: 700 }, colorScheme: scheme });
+    const pg = await c2.newPage();
+    await setup(pg);
+    await pg.goto(`http://localhost:${PORT}/`);
+    await pg.waitForSelector('aside nav', { timeout: 30000 });
+    const logo = await pg.$eval('[data-logo]', (el) => {
+      const t = el.querySelector('span');
+      const indigo = getComputedStyle(document.documentElement).getPropertyValue('--indigo').trim();
+      const probe = document.createElement('div'); probe.style.background = indigo; document.body.appendChild(probe);
+      const bg = getComputedStyle(probe).backgroundColor; probe.remove();
+      return { text: t.textContent, color: getComputedStyle(t).color, bg };
+    });
+    const lc = ratio(rgb(logo.color), rgb(logo.bg));
+    check(`Logo (${scheme}): shows "EE", letters contrast ≥ 4.5:1`, logo.text === 'EE' && lc >= 4.5, `${logo.color} on ${logo.bg}: ${lc.toFixed(2)}`);
+    await c2.close();
+  }
+
   // Theme switched by the host (data-theme="dark", e.g. inside Claude) also gets the dark button
   const ctx = await browser.newContext({ viewport: { width: 375, height: 700 }, colorScheme: 'light' });
   const page = await ctx.newPage();
