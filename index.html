@@ -3658,6 +3658,20 @@ function CheckerView() {
   );
 }
 
+/* Значок кнопки меню: чашка чая (свой рисунок, линия цвета текста — как остальные иконки) */
+function TeaMenuIcon({ size = 22 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" data-icon="tea">
+      <path d="M5 11h11v3.2a4.8 4.8 0 0 1-4.8 4.8H9.8A4.8 4.8 0 0 1 5 14.2z" />
+      <path d="M16 12.5h1.2a2.3 2.3 0 0 1 0 4.6H15.6" />
+      <path d="M3.5 21.5h14" />
+      <path d="M8 3.5c-.9 1 .9 2 0 3.2" />
+      <path d="M11 2.8c-.9 1 .9 2 0 3.2" />
+      <path d="M14 3.5c-.9 1 .9 2 0 3.2" />
+    </svg>
+  );
+}
+
 /* ---------- Флаги ---------- */
 function Flag({ code, className = 'w-6 h-4', round = false, title }) {
   const raw = React.useId ? React.useId() : String(Math.random());
@@ -4666,9 +4680,9 @@ function App() {
       <header className="sticky z-30 bg-surface border-b border-line" style={{ top: 'env(safe-area-inset-top, 0px)' }}>
         <FlagRibbon />
         <div className="gutter max-w-6xl mx-auto py-2.5 flex items-center gap-3">
-          <button onClick={() => setMenuOpen((o) => !o)} aria-expanded={menuOpen} aria-label="Открыть меню разделов"
+          <button onClick={() => setMenuOpen((o) => !o)} aria-expanded={menuOpen} aria-label="Открыть меню разделов" title={menuOpen ? 'Закрыть меню' : 'Меню разделов'}
             className="menu-btn lg:hidden w-10 h-10 -ml-1 rounded-xl flex items-center justify-center">
-            {menuOpen ? <X size={21} /> : <Menu size={21} />}
+            {menuOpen ? <X size={21} /> : <TeaMenuIcon size={22} />}
           </button>
           <button onClick={() => go('home')} className="flex items-center gap-2.5 min-w-0">
             <span className="relative w-9 h-9 rounded-xl bg-indigo text-surface flex items-center justify-center shrink-0">

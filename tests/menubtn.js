@@ -81,6 +81,7 @@ async function state(page) {
       const n = await state(page);
       const effBg = (s) => (isTransparent(s.bg) ? rgb(s.headerBg) : rgb(s.bg));
       const iconC = ratio(rgb(n.color), effBg(n));
+      check(`${tag}: closed menu shows the tea-cup icon, open menu shows ✕`, (await page.locator('button[aria-label="Открыть меню разделов"] [data-icon="tea"]').count()) === 1);
       check(`${tag}: icon follows the button colour (stroke = currentColor)`, !n.svgStroke || n.svgStroke === n.color, `${n.svgStroke} vs ${n.color}`);
       check(`${tag}: normal — icon contrast ≥ 4.5:1`, iconC >= 4.5, iconC.toFixed(2));
       if (scheme === 'dark') {
