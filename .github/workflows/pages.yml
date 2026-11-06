@@ -54,6 +54,5 @@ jobs:
       - name: Publish
         id: deployment
         uses: actions/deploy-pages@v5
-        with:
-          # GitHub иногда долго обновляет Pages; ждём до 20 минут вместо 10
-          timeout: 1200000
+        # Ожидание выкладки — 10 минут (максимум, который разрешает GitHub).
+        # Если GitHub завис, запустите сценарий вручную ещё раз: Actions → Deploy site → Run workflow.

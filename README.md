@@ -83,7 +83,7 @@
 
 Сайт публикуется сценарием GitHub Actions `.github/workflows/pages.yml`:
 при каждом push в `main` он проверяет файлы сайта и выкладывает только `index.html` и `hero.webp`
-(тесты и служебные файлы на сайт не попадают). Ожидание выкладки — до 20 минут.
+(тесты и служебные файлы на сайт не попадают). GitHub ждёт выкладку не больше 10 минут.
 
 - В настройках репозитория: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
 - Запустить выкладку вручную: **Actions → Deploy site → Run workflow**.
