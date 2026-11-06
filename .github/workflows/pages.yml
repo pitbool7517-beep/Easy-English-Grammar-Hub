@@ -1,0 +1,59 @@
+# Публикация сайта на GitHub Pages.
+# Запускается при каждом push в main, а также вручную: Actions → "Deploy site" → Run workflow.
+# Публикуются только файлы сайта (index.html, hero.webp), без тестов и служебных файлов.
+name: Deploy site
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Одна выкладка за раз; новая ждёт окончания текущей, а не прерывает её
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Get the code
+        uses: actions/checkout@v7
+
+      - name: Check the site files
+        run: |
+          test -s index.html || { echo "index.html is missing or empty"; exit 1; }
+          test -s hero.webp || { echo "hero.webp is missing or empty"; exit 1; }
+          grep -q '<title>Easy English Grammar Hub</title>' index.html || { echo "index.html has no title"; exit 1; }
+          grep -q 'type="text/babel"' index.html || { echo "app script not found in index.html"; exit 1; }
+
+      - name: Collect the files to publish
+        run: |
+          mkdir -p _site
+          cp index.html hero.webp _site/
+          touch _site/.nojekyll
+          ls -la _site
+
+      - name: Set up Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload the site
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+      - name: Publish
+        id: deployment
+        uses: actions/deploy-pages@v5
+        with:
+          # GitHub иногда долго обновляет Pages; ждём до 20 минут вместо 10
+          timeout: 1200000
