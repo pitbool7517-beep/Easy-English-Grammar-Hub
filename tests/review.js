@@ -4,6 +4,7 @@ const { chromium } = require('playwright');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { goNav } = require('./helpers');
 
 const ROOT = path.resolve(__dirname, '..');
 const PORT = 9100 + Math.floor(Math.random() * 90);
@@ -65,7 +66,7 @@ async function answerCard(page, kind = 'right') {
   return 'self';
 }
 const nextCard = (page) => page.click('main button:has-text("Дальше")');
-const backToSetup = async (page) => { await page.click('aside >> text=Главная'); await page.click('aside >> text=Повторение'); await page.waitForTimeout(150); };
+const backToSetup = async (page) => { await goNav(page, 'Главная'); await goNav(page, 'Повторение'); await page.waitForTimeout(150); };
 
 (async () => {
   await new Promise((ok) => server.listen(PORT, ok));
@@ -91,14 +92,14 @@ const backToSetup = async (page) => { await page.click('aside >> text=Главн
   // 2. Empty base: sample words button
   await page.evaluate(() => localStorage.clear());
   await page.reload(); await page.waitForSelector('aside nav');
-  await page.click('aside >> text=Повторение');
+  await goNav(page, 'Повторение');
   await page.click('main >> text=Добавить 12 слов для пробы');
   check('Empty state: 12 sample cards added', (await store(page)).items.length === 12);
 
   // 3. Seeded base, topic "Еда", typed answers, 10 cards
   await page.evaluate((s) => localStorage.setItem('eegh-data-v2', JSON.stringify(s)), SEED);
   await page.reload(); await page.waitForSelector('aside nav');
-  await page.click('aside >> text=Повторение');
+  await goNav(page, 'Повторение');
   await page.click('main button[aria-pressed]:has-text("Еда")');
   await page.click('main button[aria-pressed]:has-text("Вспомнить по-английски")');
   await page.click('main button[aria-pressed]:text-is("10 карточек")');
@@ -146,7 +147,7 @@ const backToSetup = async (page) => { await page.click('aside >> text=Главн
   check('Interrupt: both answers kept after reload', (await store(page)).reviews.length === before + 2);
 
   // 6. Rules use self-assessment
-  await page.click('aside >> text=Повторение');
+  await goNav(page, 'Повторение');
   await page.click('main button[aria-pressed]:has-text("Работа")');
   await page.click('main button[aria-pressed]:has-text("Все темы")');
   await page.click('main button[aria-pressed]:has-text("Работа")');
@@ -194,7 +195,7 @@ const backToSetup = async (page) => { await page.click('aside >> text=Главн
   await tp.waitForSelector('aside nav', { timeout: 30000 });
   await tp.evaluate((s) => localStorage.setItem('eegh-data-v2', JSON.stringify({ ...s, settings: { review: { topics: ['all'], mode: 'ru2en', length: 't5', withRules: false } } })), SEED);
   await tp.reload(); await tp.waitForSelector('aside nav');
-  await tp.click('aside >> text=Повторение');
+  await goNav(tp, 'Повторение');
   await tp.click('main button:has-text("Начать")');
   await answerCard(tp, 'right'); await nextCard(tp);
   await tp.clock.fastForward('05:01');

@@ -4,6 +4,7 @@ const { chromium } = require('playwright');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { goNav } = require('./helpers');
 const vm = require('vm');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -68,14 +69,14 @@ const tab = (page, name) => page.click(`main [role=tab]:has-text("${name}")`);
   const old = { schema: 2, progress: { ps1: { at: '2026-10-20T10:00:00.000Z' }, pt2: { at: null }, pf3: { at: null }, ar1: { at: null } }, topics: [], items: [], reviews: [], settings: {}, meta: {} };
   await page.evaluate((d) => { localStorage.clear(); localStorage.setItem('eegh-data-v2', JSON.stringify(d)); }, old);
   await page.reload(); await page.waitForSelector('aside nav');
-  check('Old progress kept: 4 / 104 overall', (await counter(page)) === '4/104', await counter(page));
+  check('Old progress kept: 4 / 143 overall', (await counter(page)) === '4/143', await counter(page));
   const nav = (await page.innerText('aside')).replace(/\s+/g, ' ');
   check('One menu item "Present Simple" with 3/55', (nav.match(/Present Simple/g) || []).length === 1 && /Present Simple\s*3\/55/.test(nav), nav.match(/Present Simple[^А-Я]*/)?.[0]);
   const home = await mainText(page);
   check('One home card for Present Simple', (home.match(/Present Simple/g) || []).length === 1 && home.includes('3 / 55 заданий'));
 
   // ---------- 3. Rules tab ----------
-  await page.click('aside >> text=Present Simple');
+  await goNav(page, 'Present Simple');
   const rules = await mainText(page);
   check('Opens on "Правила"; section shows 3 of 55 solved', (await page.getAttribute('main [role=tab]:has-text("Правила")', 'aria-selected')) === 'true' && rules.includes('Решено в разделе: 3 из 55'));
   check('Rules: + and − formulas', rules.includes('He / She / It + V1 + s / es') && rules.includes("He / She / It + doesn't + V1") && rules.includes("I / You / We / They + don't + V1"));
@@ -133,14 +134,14 @@ const tab = (page, name) => page.click(`main [role=tab]:has-text("${name}")`);
 
   // ---------- 6. Persistence ----------
   await page.reload(); await page.waitForSelector('aside nav');
-  check('After reload: all 55 + 1 other = 56 / 104', (await counter(page)) === '56/104', await counter(page));
+  check('After reload: all 55 + 1 other = 56 / 143', (await counter(page)) === '56/143', await counter(page));
   p = await progressOf(page);
   check('Old answer dates untouched', p.ps1.at === '2026-10-20T10:00:00.000Z' && p.ar1);
 
   // ---------- 7. Phone ----------
   await page.setViewportSize({ width: 375, height: 800 });
   await page.click('button[aria-label="Открыть меню разделов"]'); await page.waitForTimeout(350);
-  await page.click('text=Present Simple >> visible=true'); await page.waitForTimeout(350);
+  await goNav(page, 'Present Simple', '[data-drawer]'); await page.waitForTimeout(350);
   const sizes = [];
   for (const name of ['Правила', 'Упражнения', 'Итоговый тест']) { await tab(page, name); await page.waitForTimeout(200); sizes.push(await page.evaluate(() => document.documentElement.scrollWidth)); }
   check('Phone 375px: all three tabs without horizontal scroll', sizes.every((w) => w <= 375), sizes.join(','));

@@ -4,6 +4,7 @@ const { chromium } = require('playwright');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { goNav } = require('./helpers');
 
 const ROOT = path.resolve(__dirname, '..');
 const PORT = 9200 + Math.floor(Math.random() * 90);
@@ -72,8 +73,8 @@ async function runToSummary(page, kind = 'right') {
   for (let g = 0; g < 30 && !(await mainText(page)).includes('Итог занятия'); g++) { await answerCard(page, kind); await page.click('main button:has-text("Дальше")'); }
 }
 const hardChip = async (page) => Number(((await mainText(page)).match(/Трудные (\d+)/) || [])[1]);
-const openBase = async (page) => { await page.click('aside >> text=Моя база'); await page.waitForTimeout(150); };
-const openReview = async (page) => { await page.click('aside >> text=Главная'); await page.click('aside >> text=Повторение'); await page.waitForTimeout(150); };
+const openBase = async (page) => { await goNav(page, 'Моя база'); await page.waitForTimeout(150); };
+const openReview = async (page) => { await goNav(page, 'Главная'); await goNav(page, 'Повторение'); await page.waitForTimeout(150); };
 
 (async () => {
   await new Promise((ok) => server.listen(PORT, ok));
@@ -88,7 +89,7 @@ const openReview = async (page) => { await page.click('aside >> text=Главн�
   // 0. Empty history
   await page.evaluate(() => localStorage.clear());
   await page.reload(); await page.waitForSelector('aside nav');
-  await page.click('aside >> text=Повторение');
+  await goNav(page, 'Повторение');
   await page.click('main >> text=Добавить 12 слов для пробы');
   check('No history yet: friendly placeholder', (await mainText(page)).includes('Здесь появятся ваши занятия по дням'));
 
@@ -158,7 +159,7 @@ const openReview = async (page) => { await page.click('aside >> text=Главн�
   const w = await page.evaluate(() => document.documentElement.scrollWidth);
   check('No horizontal scroll at 375px (history chart scrolls inside its box)', w <= 375, `${w}px`);
   await page.click('button[aria-label="Открыть меню разделов"]'); await page.waitForTimeout(350);
-  await page.click('text=Моя база >> visible=true'); await page.waitForTimeout(300);
+  await goNav(page, 'Моя база', '[data-drawer]'); await page.waitForTimeout(300);
   const w2 = await page.evaluate(() => document.documentElement.scrollWidth);
   check('No horizontal scroll at 375px in the base with stats', w2 <= 375, `${w2}px`);
 

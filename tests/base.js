@@ -4,6 +4,7 @@ const { chromium } = require('playwright');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { goNav } = require('./helpers');
 
 const ROOT = path.resolve(__dirname, '..');
 const PORT = 9000 + Math.floor(Math.random() * 90);
@@ -31,7 +32,7 @@ async function routeLibraries(page) {
 
 const data = async (page) => JSON.parse(await page.evaluate(() => localStorage.getItem('eegh-data-v2')));
 const shown = async (page) => Number(((await page.innerText('main')).match(/Показано: (\d+) из (\d+)/) || [])[2]);
-const openBase = async (page) => { await page.click('aside >> text=Моя база'); await page.waitForTimeout(150); };
+const openBase = async (page) => { await goNav(page, 'Моя база'); await page.waitForTimeout(150); };
 
 (async () => {
   await new Promise((ok) => server.listen(PORT, ok));
@@ -148,14 +149,14 @@ const openBase = async (page) => { await page.click('aside >> text=Моя баз
   await page.waitForSelector('aside nav');
   await openBase(page);
   check('Everything survives reload', (await shown(page)) === 52);
-  await page.click('aside >> text=Мои данные');
+  await goNav(page, 'Мои данные');
   check('"Мои данные" counts own cards', (await page.innerText('main')).includes('52'));
 
   // Phone width
   await page.setViewportSize({ width: 375, height: 800 });
   await page.click('button[aria-label="Открыть меню разделов"]');
   await page.waitForTimeout(350);
-  await page.click('text=Моя база >> visible=true');
+  await goNav(page, 'Моя база', '[data-drawer]');
   await page.waitForTimeout(350);
   await page.click('main >> text=+ Добавить карточку');
   const w = await page.evaluate(() => document.documentElement.scrollWidth);

@@ -122,7 +122,7 @@ const Home = icon('Home'), Clock = icon('Clock'), Sparkles = icon('Sparkles'), Q
   SpellCheck = icon('SpellCheck'), Volume2 = icon('Volume2'), Loader2 = icon('Loader2'), Square = icon('Square'),
   Wand2 = icon('Wand2'), AlertTriangle = icon('AlertTriangle'),
   Menu = icon('Menu'), X = icon('X'), Languages = icon('Languages'), PlayCircle = icon('PlayCircle'),
-  TypeIcon = icon('Type'), PenLine = icon('PenLine'), SaveIcon = icon('Save'), Library = icon('Library'), RepeatIcon = icon('Repeat'), Flame = icon('Flame');
+  TypeIcon = icon('Type'), PenLine = icon('PenLine'), SaveIcon = icon('Save'), Library = icon('Library'), RepeatIcon = icon('Repeat'), Flame = icon('Flame'), Gauge = icon('Gauge');
 
 /* ---------- Данные ---------- */
 const TENSES = {
@@ -468,6 +468,7 @@ function ChoiceQuestion({ q, index, options, solved, onCorrect }) {
   return (
     <div className="border-t border-line pt-4 first:border-t-0 first:pt-0">
       <p className="text-sm text-muted tnum">Вопрос {index + 1}</p>
+      {q.context && <p className="text-sm mt-1 rounded-lg bg-surface2 px-2.5 py-1.5 inline-block" lang="en">{q.context}</p>}
       <p className="text-lg mt-1">
         {q.before} <span className={`inline-block min-w-[4.5rem] text-center border-b-2 px-1 transition-colors duration-300 ${done ? 'border-green text-green font-semibold' : 'border-line text-muted'}`}>{done ? q.answer : '___'}</span> {q.after}
       </p>
@@ -505,6 +506,7 @@ function HomeView({ progress, go, reset, lastExportAt, itemsCount, hardCount }) 
     { key: 'possessive', title: 'Притяжательный падеж', desc: "Где ставить апостроф: 's или s'", icon: Quote, t: 'green', done: APOS.filter(q => progress[q.id]).length, total: APOS.length },
     { key: 'articles', title: 'Артикли A / AN', desc: 'Выбор по звуку, исключения и поиск ошибок', icon: TypeIcon, t: 'blue', done: [...AAN_QUIZ, ...ZERO_QUIZ, ...FIX_QUIZ].filter(q => progress[q.id]).length, total: ARTICLE_TOTAL },
     { key: 'psimple', title: 'Present Simple', desc: "Утверждение и отрицание: -s / -es, don't / doesn't, перевод, итоговый тест", icon: PenLine, t: 'indigo', done: PS_ALL.filter(q => progress[q.id]).length, total: PS_TOTAL },
+    { key: 'adverbs', title: 'Adverbs of Frequency', desc: 'always, usually, sometimes, never: шкала, место в предложении, How often', icon: Gauge, t: 'green', done: ADV_ALL.filter(q => progress[q.id]).length, total: ADV_TOTAL },
   ];
   const r = 52, c = 2 * Math.PI * r;
   return (
@@ -528,7 +530,7 @@ function HomeView({ progress, go, reset, lastExportAt, itemsCount, hardCount }) 
             <p className="text-xs uppercase tracking-[0.12em] text-muted font-medium">Грамматика для начинающих · A1–A2</p>
           </div>
           <h2 className="font-display text-3xl sm:text-4xl font-semibold mt-2 leading-tight">Добро пожаловать в <span className="text-indigo">Grammar Hub</span></h2>
-          <p className="text-muted mt-3 max-w-[52ch]">Британский и американский английский с объяснениями на русском: пять тем грамматики, понятные схемы, короткие проверки и тренажёры. Отвечайте на вопросы в каждом разделе — правильные ответы засчитываются в общий прогресс.</p>
+          <p className="text-muted mt-3 max-w-[52ch]">Британский и американский английский с объяснениями на русском: шесть тем грамматики, понятные схемы, короткие проверки и тренажёры. Отвечайте на вопросы в каждом разделе — правильные ответы засчитываются в общий прогресс.</p>
           <button onClick={() => go('tenses')} className="mt-5 self-start inline-flex items-center gap-2 bg-indigo text-surface px-5 py-2.5 rounded-xl font-medium transition-transform duration-200 hover:-translate-y-0.5">
             Начать с времён <ArrowRight size={18} />
           </button>
@@ -1341,7 +1343,7 @@ function SentenceQuestion({ q, index, prompt, solved, onCorrect, placeholder }) 
         {!done && <button type="submit" className="px-4 py-2 rounded-xl bg-indigo text-surface font-medium transition-transform hover:-translate-y-0.5">Проверить</button>}
       </div>
       {state === 'ok' && <Feedback ok text={q.explain} />}
-      {state === 'bad' && <Feedback ok={false} text={tries >= 2 ? `Правильно: ${q.accept[0]} ${q.explain}` : `Проверьте: кто действует (I/you/we/they или he/she/it) и нужно ли don't или doesn't. ${q.hint ? 'Слова: ' + q.hint + '.' : ''}`} />}
+      {state === 'bad' && <Feedback ok={false} text={tries >= 2 ? `Правильно: ${q.accept[0]} ${q.explain}` : `${q.retryHint || "Проверьте: кто действует (I/you/we/they или he/she/it) и нужно ли don't или doesn't."} ${q.hint ? 'Слова: ' + q.hint + '.' : ''}`} />}
     </form>
   );
 }
@@ -1402,12 +1404,12 @@ function FindFixQuestion({ q, index, solved, onCorrect }) {
   );
 }
 
-function TestQuestion({ q, index, onAnswer }) {
+function TestQuestion({ q, index, total = PN_TEST.length, onAnswer }) {
   const [picked, setPicked] = useState(null);
   const ok = picked === q.answer;
   return (
     <div className="border-t border-line pt-4 first:border-t-0 first:pt-0" data-q={q.id}>
-      <p className="text-sm text-muted tnum">Вопрос {index + 1} из {PN_TEST.length}</p>
+      <p className="text-sm text-muted tnum">Вопрос {index + 1} из {total}</p>
       <p className="text-lg mt-1 font-medium" lang="en">{q.q}</p>
       <div className="flex flex-wrap gap-2 mt-3">
         {q.options.map((opt) => {
@@ -1434,29 +1436,30 @@ function TestQuestion({ q, index, onAnswer }) {
   );
 }
 
-function FinalTest({ progress, onCorrect }) {
+// Итоговый тест темы. questions — список вопросов (по умолчанию Present Simple)
+function FinalTest({ progress, onCorrect, questions = PN_TEST }) {
   const [round, setRound] = useState(0);
   const [answers, setAnswers] = useState({});
-  const [order, setOrder] = useState(PN_TEST);
+  const [order, setOrder] = useState(questions);
   const count = Object.keys(answers).length;
   const right = Object.values(answers).filter(Boolean).length;
   const onAnswer = (q, ok) => { setAnswers((a) => ({ ...a, [q.id]: ok })); if (ok) onCorrect(q.id); };
-  const restart = () => { setAnswers({}); setOrder(shuffled(PN_TEST)); setRound((r) => r + 1); };
-  const finished = count === PN_TEST.length;
+  const restart = () => { setAnswers({}); setOrder(shuffled(questions)); setRound((r) => r + 1); };
+  const finished = count === questions.length;
   return (
     <Panel>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="font-display text-xl font-semibold flex items-center gap-2"><Trophy size={20} className="text-amber" /> Итоговый тест</h3>
-        <span className="text-xs text-muted tnum">Ответов: {count} / {PN_TEST.length} · верно: {right}</span>
+        <span className="text-xs text-muted tnum">Ответов: {count} / {questions.length} · верно: {right}</span>
       </div>
       <p className="text-sm text-muted mt-1">10 вопросов, у каждого один правильный ответ. Ответ сразу фиксируется — подумайте перед нажатием.</p>
       <div key={round} className="mt-4 space-y-5">
-        {order.map((q, i) => <TestQuestion key={q.id} q={q} index={i} onAnswer={onAnswer} />)}
+        {order.map((q, i) => <TestQuestion key={q.id} q={q} index={i} total={questions.length} onAnswer={onAnswer} />)}
       </div>
       {finished && (
         <div className="fade-in mt-5 rounded-2xl bg-surface2 border border-line p-4" role="status">
-          <p className="font-display text-2xl font-semibold tnum">Результат: {right} из {PN_TEST.length}</p>
-          <p className="text-sm mt-1">{right === PN_TEST.length ? 'Отлично! Тема усвоена.' : right >= 7 ? 'Хорошо! Посмотрите объяснения к ошибкам и пройдите тест ещё раз.' : 'Стоит повторить теорию выше и пройти тест ещё раз.'}</p>
+          <p className="font-display text-2xl font-semibold tnum">Результат: {right} из {questions.length}</p>
+          <p className="text-sm mt-1">{right === questions.length ? 'Отлично! Тема усвоена.' : right >= Math.ceil(questions.length * 0.7) ? 'Хорошо! Посмотрите объяснения к ошибкам и пройдите тест ещё раз.' : 'Стоит повторить теорию выше и пройти тест ещё раз.'}</p>
           <button onClick={restart} className="mt-3 inline-flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-xl border-2 border-line hover:border-indigo"><RotateCcw size={15} /> Пройти заново</button>
         </div>
       )}
@@ -1703,8 +1706,309 @@ function PresentSimpleView({ progress, onCorrect }) {
   );
 }
 
+/* ---------- Adverbs of Frequency — наречия частотности ---------- */
+const ADV_SCALE = [
+  { en: 'always', ru: 'всегда', pct: 100, ex: 'I always drink coffee in the morning.', exRu: 'Я всегда пью кофе утром.' },
+  { en: 'usually', ru: 'обычно', pct: 90, ex: 'We usually have dinner at 7.', exRu: 'Мы обычно ужинаем в 7.' },
+  { en: 'often', ru: 'часто', pct: 70, ex: 'She often reads books.', exRu: 'Она часто читает книги.' },
+  { en: 'sometimes', ru: 'иногда', pct: 50, ex: 'I sometimes work from home.', exRu: 'Я иногда работаю из дома.' },
+  { en: 'rarely', ru: 'редко', pct: 10, ex: 'He rarely watches TV.', exRu: 'Он редко смотрит телевизор.' },
+  { en: 'hardly ever', ru: 'почти никогда', pct: 5, ex: 'My dad hardly ever drives to work.', exRu: 'Мой папа почти никогда не ездит на работу на машине.' },
+  { en: 'never', ru: 'никогда', pct: 0, ex: 'They never eat fast food.', exRu: 'Они никогда не едят фастфуд.' },
+];
+const ADV_RULES = [
+  { title: '1. С обычными глаголами — перед глаголом', formula: 'Подлежащее + наречие + глагол', ex: [['I always drink coffee.', 'Я всегда пью кофе.'], ['She often reads books.', 'Она часто читает книги.']], note: 'Окончание -s у глагола остаётся: she often reads.' },
+  { title: '2. С глаголом TO BE — после am / is / are', formula: 'Подлежащее + am / is / are + наречие', ex: [['I am always busy.', 'Я всегда занят.'], ['He is usually happy.', 'Он обычно счастлив.']], note: 'Сначала to be, потом наречие: is usually, are never.' },
+  { title: '3. Вопрос: How often…?', formula: 'How often + do / does + подлежащее + глагол?', ex: [['How often do you exercise?', 'Как часто ты занимаешься спортом?'], ['How often does she read?', 'Как часто она читает?']], note: 'С he / she / it — does, и глагол без -s. Ответ: every day, twice a week, once a month…' },
+];
+
+const ADV_CHOOSE = [
+  { id: 'adv-c1', context: 'Tom drinks coffee every morning, without exceptions.', before: 'Tom', after: 'drinks coffee in the morning.', options: ['always', 'sometimes', 'never'], answer: 'always', explain: 'Каждый день без исключений — 100% → always.' },
+  { id: 'adv-c2', context: "Anna doesn't eat meat at all.", before: 'Anna', after: 'eats meat.', options: ['often', 'never', 'usually'], answer: 'never', explain: 'Совсем не ест — 0% → never.' },
+  { id: 'adv-c3', context: 'I go to the theatre once a year.', before: 'I', after: 'go to the theatre.', options: ['rarely', 'usually', 'always'], answer: 'rarely', explain: 'Раз в год — это редко → rarely.' },
+  { id: 'adv-c4', context: 'We work from home about half of the week.', before: 'We', after: 'work from home.', options: ['sometimes', 'never', 'always'], answer: 'sometimes', explain: 'Примерно половину времени — 50% → sometimes.' },
+  { id: 'adv-c5', context: 'My dad reads the news almost every day.', before: 'My dad', after: 'reads the news.', options: ['usually', 'hardly ever', 'never'], answer: 'usually', explain: 'Почти каждый день — около 90% → usually.' },
+  { id: 'adv-c6', context: 'She plays tennis three or four times a week.', before: 'She', after: 'plays tennis.', options: ['often', 'never', 'hardly ever'], answer: 'often', explain: 'Несколько раз в неделю — часто → often.' },
+  { id: 'adv-c7', context: 'He eats fast food maybe once every few years.', before: 'He', after: 'eats fast food.', options: ['hardly ever', 'always', 'usually'], answer: 'hardly ever', explain: 'Раз в несколько лет — почти никогда → hardly ever.' },
+  { id: 'adv-c8', context: 'The bus is late every single day!', before: 'The bus is', after: 'late.', options: ['always', 'rarely', 'never'], answer: 'always', explain: 'Каждый день — always. С to be наречие стоит после is: is always late.' },
+];
+
+// Где стоит наречие: выберите правильное предложение
+const ADV_POSITION = [
+  { id: 'adv-p1', q: 'Выберите правильное предложение', options: ['I always get up at 7.', 'I get always up at 7.', 'I get up at always 7.'], answer: 'I always get up at 7.', rule: 'С обычным глаголом наречие стоит перед глаголом: always get up.' },
+  { id: 'adv-p2', q: 'Выберите правильное предложение', options: ['She reads often books.', 'She often reads books.', 'Often she books reads.'], answer: 'She often reads books.', rule: 'Наречие перед глаголом: often reads.' },
+  { id: 'adv-p3', q: 'Выберите правильное предложение', options: ['He never is late.', 'He is never late.', 'He is late never.'], answer: 'He is never late.', rule: 'С to be наречие после is: is never late.' },
+  { id: 'adv-p4', q: 'Выберите правильное предложение', options: ['We are usually at home on Sundays.', 'We usually at home are on Sundays.', 'We are at home on Sundays usually at.'], answer: 'We are usually at home on Sundays.', rule: 'После are: are usually at home.' },
+  { id: 'adv-p5', q: 'Выберите правильное предложение', options: ['My parents cook sometimes pasta.', 'My parents sometimes cook pasta.', 'My parents sometimes cooks pasta.'], answer: 'My parents sometimes cook pasta.', rule: 'Перед глаголом: sometimes cook. My parents = they, поэтому cook без -s.' },
+  { id: 'adv-p6', q: 'Выберите правильное предложение', options: ['I rarely am tired after work.', 'I am rarely tired after work.', 'I am tired rarely after work.'], answer: 'I am rarely tired after work.', rule: 'С to be наречие после am: am rarely tired.' },
+  { id: 'adv-p7', q: 'Выберите правильное предложение', options: ['Tom drives hardly ever to work.', 'Tom hardly ever drives to work.', 'Hardly ever Tom drives to work.'], answer: 'Tom hardly ever drives to work.', rule: 'hardly ever стоит перед глаголом, как и другие наречия частотности.' },
+  { id: 'adv-p8', q: 'Выберите правильный вопрос', options: ['How often she reads?', 'How often does she reads?', 'How often does she read?'], answer: 'How often does she read?', rule: 'How often + does + she + глагол без -s.' },
+];
+
+// Соберите предложение из слов. words — слова в правильном порядке; accept — все верные варианты
+const ADV_ORDER = [
+  { id: 'adv-o1', words: ['I', 'usually', 'walk', 'to', 'work'], end: '.', accept: ['I usually walk to work.'], ru: 'Я обычно хожу на работу пешком.', explain: 'Наречие перед глаголом: usually walk.' },
+  { id: 'adv-o2', words: ['She', 'is', 'always', 'busy', 'on', 'Mondays'], end: '.', accept: ['She is always busy on Mondays.'], ru: 'Она всегда занята по понедельникам.', explain: 'С to be: is always busy.' },
+  { id: 'adv-o3', words: ['We', 'sometimes', 'eat', 'pizza', 'on', 'Fridays'], end: '.', accept: ['We sometimes eat pizza on Fridays.', 'Sometimes we eat pizza on Fridays.'], ru: 'Мы иногда едим пиццу по пятницам.', explain: 'sometimes обычно перед глаголом; его можно поставить и в начало предложения.' },
+  { id: 'adv-o4', words: ['He', 'never', 'drinks', 'coffee'], end: '.', accept: ['He never drinks coffee.'], ru: 'Он никогда не пьёт кофе.', explain: 'never перед глаголом; never уже значит «не», поэтому doesn\'t не нужен.' },
+  { id: 'adv-o5', words: ['How', 'often', 'do', 'you', 'go', 'to', 'the', 'gym'], end: '?', accept: ['How often do you go to the gym?'], ru: 'Как часто ты ходишь в спортзал?', explain: 'How often + do + you + глагол.' },
+  { id: 'adv-o6', words: ['They', 'are', 'rarely', 'late', 'for', 'work'], end: '.', accept: ['They are rarely late for work.'], ru: 'Они редко опаздывают на работу.', explain: 'С to be: are rarely late.' },
+  { id: 'adv-o7', words: ['My', 'dad', 'hardly', 'ever', 'watches', 'TV'], end: '.', accept: ['My dad hardly ever watches TV.'], ru: 'Мой папа почти никогда не смотрит телевизор.', explain: 'hardly ever перед глаголом; my dad = he → watches.' },
+];
+
+const ADV_TRANSLATE = [
+  { id: 'adv-r1', retryHint: 'Проверьте место наречия: перед обычным глаголом, но после am / is / are.', ru: 'Я всегда завтракаю дома.', accept: ['I always have breakfast at home.', 'I always eat breakfast at home.'], hint: 'have breakfast — завтракать, at home — дома', explain: 'always перед глаголом: always have breakfast.' },
+  { id: 'adv-r2', retryHint: 'Проверьте место наречия: перед обычным глаголом, но после am / is / are.', ru: 'Она часто читает книги.', accept: ['She often reads books.'], hint: 'read — читать', explain: 'often перед глаголом, she → reads.' },
+  { id: 'adv-r3', retryHint: 'Проверьте место наречия: перед обычным глаголом, но после am / is / are.', ru: 'Он никогда не опаздывает.', accept: ['He is never late.', "He's never late."], hint: 'be late — опаздывать', explain: 'Опаздывать = be late, поэтому наречие после is: is never late.' },
+  { id: 'adv-r4', retryHint: 'Проверьте место наречия: перед обычным глаголом, но после am / is / are.', ru: 'Мы иногда работаем из дома.', accept: ['We sometimes work from home.', 'Sometimes we work from home.', 'We sometimes work at home.', 'Sometimes we work at home.'], hint: 'work from home — работать из дома', explain: 'sometimes перед глаголом (или в начале предложения).' },
+  { id: 'adv-r5', retryHint: 'Проверьте место наречия: перед обычным глаголом, но после am / is / are.', ru: 'Как часто ты ходишь в спортзал?', accept: ['How often do you go to the gym?'], hint: 'go to the gym — ходить в спортзал', explain: 'How often + do + you + go.' },
+  { id: 'adv-r6', retryHint: 'Проверьте место наречия: перед обычным глаголом, но после am / is / are.', ru: 'Мой брат обычно занят.', accept: ['My brother is usually busy.'], hint: 'busy — занятой', explain: 'Занят = is busy, наречие после is: is usually busy.' },
+];
+
+const ADV_TEST = [
+  { id: 'adv-q1', q: 'I ___ drink coffee in the morning. (100%)', options: ['always', 'sometimes', 'never'], answer: 'always', rule: '100% — always.' },
+  { id: 'adv-q2', q: 'Which sentence is correct?', options: ['She usually happy is.', 'She is usually happy.', 'Usually is she happy.'], answer: 'She is usually happy.', rule: 'С to be наречие после am / is / are.' },
+  { id: 'adv-q3', q: 'Which sentence is correct?', options: ['He drinks never tea.', 'He never drink tea.', 'He never drinks tea.'], answer: 'He never drinks tea.', rule: 'Наречие перед глаголом, а he → drinks с -s.' },
+  { id: 'adv-q4', q: '___ often do you cook?', options: ['What', 'How', 'When'], answer: 'How', rule: 'Вопрос о частоте: How often…?' },
+  { id: 'adv-q5', q: 'How often ___ she go to the gym?', options: ['do', 'does', 'is'], answer: 'does', rule: 'С she — does, а глагол без -s: does she go.' },
+  { id: 'adv-q6', q: '«rarely» значит…', options: ['часто', 'редко', 'никогда'], answer: 'редко', rule: 'rarely — редко (примерно 10%).' },
+  { id: 'adv-q7', q: 'Which adverb means about 50%?', options: ['usually', 'sometimes', 'hardly ever'], answer: 'sometimes', rule: 'sometimes — иногда, примерно половина случаев.' },
+  { id: 'adv-q8', q: 'Which sentence is correct?', options: ['We are often tired after work.', 'We often tired are after work.', 'Often are we tired after work.'], answer: 'We are often tired after work.', rule: 'После are: are often tired.' },
+  { id: 'adv-q9', q: '«hardly ever» значит…', options: ['почти всегда', 'почти никогда', 'иногда'], answer: 'почти никогда', rule: 'hardly ever — почти никогда (около 5%).' },
+  { id: 'adv-q10', q: 'Which sentence is correct?', options: ["I don't never eat fast food.", 'I never eat fast food.', "I never don't eat fast food."], answer: 'I never eat fast food.', rule: "never уже отрицание, поэтому don't не нужен." },
+];
+const ADV_ALL = [...ADV_CHOOSE, ...ADV_POSITION, ...ADV_ORDER, ...ADV_TRANSLATE, ...ADV_TEST];
+const ADV_TOTAL = ADV_ALL.length;
+
+// Выбор правильного предложения (с повторной попыткой, как в упражнениях)
+function PickSentenceQuestion({ q, index, solved, onCorrect }) {
+  const [picked, setPicked] = useState(null);
+  const done = picked === q.answer;
+  return (
+    <div className="border-t border-line pt-4 first:border-t-0 first:pt-0" data-q={q.id}>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-sm text-muted tnum">Задание {index + 1} · {q.q}</p>
+        {solved && picked === null && <span className="text-xs text-green inline-flex items-center gap-1"><CheckCircle2 size={14} /> уже решено раньше</span>}
+      </div>
+      <div className="mt-3 flex flex-col gap-2">
+        {q.options.map((opt) => {
+          const isPicked = picked === opt;
+          let cls = 'bg-surface2 border-line hover:border-indigo';
+          if (isPicked && opt === q.answer) cls = 'bg-greenSoft border-green text-green';
+          else if (isPicked) cls = 'bg-redSoft border-red text-red';
+          else if (done) cls = 'bg-surface2 border-line opacity-50';
+          return (
+            <button key={opt} disabled={done} onClick={() => { setPicked(opt); if (opt === q.answer) onCorrect(q.id); }} lang="en"
+              className={`text-left px-4 py-2.5 rounded-xl border-2 text-base transition-all duration-200 ${cls}`}>{opt}</button>
+          );
+        })}
+      </div>
+      {picked !== null && <Feedback ok={done} text={done ? q.rule : `Правильно: «${q.answer}». ${q.rule}`} />}
+    </div>
+  );
+}
+
+// Сборка предложения из перемешанных слов
+function OrderQuestion({ q, index, solved, onCorrect }) {
+  const [pool, setPool] = useState(() => {
+    let s = shuffled(q.words.map((w, i) => ({ w, i })));
+    if (s.every((x, k) => x.i === k) && s.length > 1) s = [...s.slice(1), s[0]];
+    return s;
+  });
+  const [line, setLine] = useState([]);
+  const [state, setState] = useState(null); // null | ok | bad
+  const done = state === 'ok';
+  const sentence = line.map((x) => x.w).join(' ') + q.end;
+  const take = (t) => { if (done) return; setPool((p) => p.filter((x) => x !== t)); setLine((l) => [...l, t]); setState(null); };
+  const back = (t) => { if (done) return; setLine((l) => l.filter((x) => x !== t)); setPool((p) => [...p, t]); setState(null); };
+  const check = () => {
+    if (pool.length) return;
+    // Первое слово с заглавной, остальные — как в исходных словах
+    const built = sentence.charAt(0).toUpperCase() + sentence.slice(1);
+    if (sentenceMatches(built, q.accept)) { setState('ok'); onCorrect(q.id); } else setState('bad');
+  };
+  const reset = () => { setPool(shuffled(q.words.map((w, i) => ({ w, i })))); setLine([]); setState(null); };
+  return (
+    <div className="border-t border-line pt-4 first:border-t-0 first:pt-0" data-q={q.id}>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-sm text-muted tnum">Задание {index + 1}</p>
+        {solved && state === null && line.length === 0 && <span className="text-xs text-green inline-flex items-center gap-1"><CheckCircle2 size={14} /> уже решено раньше</span>}
+      </div>
+      <p className="mt-1 flex items-center gap-2"><Flag code="ru" className="w-5 h-3.5" /> {q.ru}</p>
+      <div className={`mt-3 min-h-[3rem] rounded-xl border-2 border-dashed px-2 py-2 flex flex-wrap gap-1.5 items-center transition-colors ${done ? 'border-green bg-greenSoft' : state === 'bad' ? 'border-red' : 'border-line'}`} aria-label="Ваше предложение" data-line>
+        {line.length === 0 && <span className="text-sm text-muted px-1">Нажимайте на слова ниже по порядку</span>}
+        {line.map((t) => (
+          <button key={t.i} onClick={() => back(t)} disabled={done} lang="en" data-tile="line"
+            className="pop px-2.5 py-1 rounded-lg bg-surface border border-line text-base font-medium hover:border-red">{t.w}</button>
+        ))}
+        {line.length > 0 && <span className="text-lg font-medium">{q.end}</span>}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Слова">
+        {pool.map((t) => (
+          <button key={t.i} onClick={() => take(t)} lang="en" data-tile="pool"
+            className="px-2.5 py-1 rounded-lg bg-indigoSoft text-indigo border border-transparent text-base font-medium transition-transform hover:-translate-y-0.5">{t.w}</button>
+        ))}
+      </div>
+      {!done && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button onClick={check} disabled={pool.length > 0} className="px-4 py-2 rounded-xl bg-indigo text-surface font-medium disabled:opacity-50">Проверить</button>
+          {line.length > 0 && <button onClick={reset} className="px-4 py-2 rounded-xl border-2 border-line hover:border-indigo">Сначала</button>}
+        </div>
+      )}
+      {state === 'ok' && <Feedback ok text={q.explain} />}
+      {state === 'bad' && <Feedback ok={false} text={`Порядок неверный. Правильно: «${q.accept[0]}» ${q.explain}`} />}
+    </div>
+  );
+}
+
+function AdverbsView({ progress, onCorrect }) {
+  const [tab, setTab] = useState('rules');
+  const [round, setRound] = useState(0);
+  const [picked, setPicked] = useState(0);
+  const [order, setOrder] = useState(() => ({ choose: ADV_CHOOSE, position: ADV_POSITION, words: ADV_ORDER, translate: ADV_TRANSLATE }));
+  const solvedIn = (list) => list.filter((q) => progress[q.id]).length;
+  const practice = [...ADV_CHOOSE, ...ADV_POSITION, ...ADV_ORDER, ...ADV_TRANSLATE];
+  const restart = () => {
+    setOrder({ choose: shuffled(ADV_CHOOSE), position: shuffled(ADV_POSITION), words: shuffled(ADV_ORDER), translate: shuffled(ADV_TRANSLATE) });
+    setRound((r) => r + 1);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  const openTab = (k) => { setTab(k); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const head = (num, title, list) => (
+    <div className="flex flex-wrap items-baseline justify-between gap-2">
+      <h3 className="font-display text-xl font-semibold flex items-center gap-2"><Target size={20} className="text-indigo" /> {num}. {title}</h3>
+      <span className="text-xs text-muted tnum">{solvedIn(list)} / {list.length}</span>
+    </div>
+  );
+  const TABS = [
+    { k: 'rules', label: 'Правила', note: 'шкала и примеры' },
+    { k: 'practice', label: 'Упражнения', note: `${solvedIn(practice)} / ${practice.length}` },
+    { k: 'test', label: 'Итоговый тест', note: `${solvedIn(ADV_TEST)} / ${ADV_TEST.length}` },
+  ];
+  const A = ADV_SCALE[picked];
+
+  return (
+    <div className="fade-in space-y-6">
+      <SectionTitle eyebrow="Раздел 6" title="Adverbs of Frequency">Наречия частотности: как часто что-то происходит — всегда, обычно, иногда или никогда. Решено в разделе: {solvedIn(ADV_ALL)} из {ADV_TOTAL}.</SectionTitle>
+
+      <div className="grid grid-cols-3 gap-2" role="tablist" aria-label="Части раздела">
+        {TABS.map((t) => (
+          <button key={t.k} role="tab" aria-selected={tab === t.k} onClick={() => openTab(t.k)}
+            className={`rounded-xl border-2 px-2 py-2.5 text-center transition-all duration-200 ${tab === t.k ? 'border-indigo bg-indigoSoft' : 'border-line bg-surface hover:border-indigo'}`}>
+            <span className={`block font-medium text-sm sm:text-base ${tab === t.k ? 'text-indigo' : ''}`}>{t.label}</span>
+            <span className="block text-xs text-muted tnum mt-0.5">{t.note}</span>
+          </button>
+        ))}
+      </div>
+
+      {tab === 'rules' && (
+        <div className="fade-in space-y-6">
+          <Panel>
+            <h3 className="font-display text-xl font-semibold">Шкала частоты: от 100% до 0%</h3>
+            <p className="text-sm text-muted mt-1">Нажмите на наречие, чтобы увидеть пример и послушать его. Проценты примерные.</p>
+            <ol className="mt-4 space-y-1.5" aria-label="Наречия частотности по убыванию">
+              {ADV_SCALE.map((a, i) => (
+                <li key={a.en}>
+                  <button onClick={() => { setPicked(i); sayEnglish(a.ex); }} aria-pressed={picked === i} data-adverb={a.en}
+                    className={`w-full grid grid-cols-[7.5rem_1fr_3rem] sm:grid-cols-[9rem_1fr_3.5rem] items-center gap-3 rounded-xl px-2 py-1.5 text-left transition-all duration-200 ${picked === i ? 'bg-indigoSoft' : 'hover:bg-surface2'}`}>
+                    <span className="min-w-0">
+                      <span className={`block font-semibold ${picked === i ? 'text-indigo' : ''}`} lang="en">{a.en}</span>
+                      <span className="block text-xs text-muted">{a.ru}</span>
+                    </span>
+                    <span className="h-3 rounded-full bg-surface2 overflow-hidden" aria-hidden="true">
+                      <span className="block h-full rounded-full transition-all duration-700" style={{ width: `${Math.max(a.pct, 1.5)}%`, background: a.pct >= 70 ? 'var(--green)' : a.pct >= 40 ? 'var(--blue)' : a.pct > 0 ? 'var(--amber)' : 'var(--red)' }} />
+                    </span>
+                    <span className="text-sm tnum text-right text-muted">{a.pct}%</span>
+                  </button>
+                </li>
+              ))}
+            </ol>
+            <div key={picked} className="fade-in mt-4 rounded-2xl bg-surface2 border border-line p-4">
+              <p className="text-lg font-medium" lang="en">{A.ex}</p>
+              <p className="text-sm text-muted mt-0.5">{A.exRu}</p>
+            </div>
+          </Panel>
+
+          <div className="grid gap-4 md:grid-cols-3">
+            {ADV_RULES.map((r) => (
+              <Panel key={r.title}>
+                <p className="font-semibold">{r.title}</p>
+                <p className="mt-2 font-mono text-sm rounded-xl bg-blueSoft px-3 py-2">{r.formula}</p>
+                <ul className="mt-3 space-y-1.5">
+                  {r.ex.map(([en, ru]) => (
+                    <li key={en}>
+                      <span className="block font-medium" lang="en">{en}</span>
+                      <span className="block text-sm text-muted">{ru}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-xs text-muted mt-3">{r.note}</p>
+              </Panel>
+            ))}
+          </div>
+
+          <div className="rounded-2xl border-2 border-amber bg-amberSoft p-4 flex gap-3 items-start" role="note">
+            <Lightbulb size={22} className="text-amber shrink-0 mt-0.5" />
+            <div className="text-sm">
+              <p className="font-semibold text-base">Запомните</p>
+              <p className="mt-1"><b>never</b> уже значит «не»: <span lang="en">I never eat meat</span> — без don't. Неправильно: <span lang="en" className="line-through text-red">I don't never eat meat</span>.</p>
+              <p className="mt-1"><b>sometimes</b> можно поставить и в начало: <span lang="en">Sometimes we eat pizza.</span></p>
+            </div>
+          </div>
+
+          <button onClick={() => openTab('practice')} className="inline-flex items-center gap-2 bg-indigo text-surface px-5 py-2.5 rounded-xl font-medium transition-transform hover:-translate-y-0.5">К упражнениям <ArrowRight size={18} /></button>
+        </div>
+      )}
+
+      {tab === 'practice' && (
+        <div className="fade-in space-y-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-muted">Примеры из жизни, работы, учёбы и привычек.</p>
+            <button onClick={restart} className="inline-flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-xl border-2 border-line hover:border-indigo transition-colors">
+              <RotateCcw size={15} /> Перемешать и пройти заново
+            </button>
+          </div>
+          <Panel>
+            {head(1, 'Выберите наречие', ADV_CHOOSE)}
+            <p className="text-sm text-muted mt-1">Прочитайте ситуацию и выберите, как часто это происходит.</p>
+            <div key={'c' + round} className="mt-4 space-y-5">
+              {order.choose.map((q, i) => <ChoiceQuestion key={q.id} q={q} index={i} options={q.options} solved={!!progress[q.id]} onCorrect={onCorrect} />)}
+            </div>
+          </Panel>
+          <Panel>
+            {head(2, 'Где стоит наречие?', ADV_POSITION)}
+            <div key={'p' + round} className="mt-4 space-y-5">
+              {order.position.map((q, i) => <PickSentenceQuestion key={q.id} q={q} index={i} solved={!!progress[q.id]} onCorrect={onCorrect} />)}
+            </div>
+          </Panel>
+          <Panel>
+            {head(3, 'Соберите предложение', ADV_ORDER)}
+            <p className="text-sm text-muted mt-1">Нажимайте на слова по порядку. Чтобы убрать слово, нажмите на него в строке.</p>
+            <div key={'o' + round} className="mt-4 space-y-5">
+              {order.words.map((q, i) => <OrderQuestion key={q.id} q={q} index={i} solved={!!progress[q.id]} onCorrect={onCorrect} />)}
+            </div>
+          </Panel>
+          <Panel>
+            {head(4, 'Переведите на английский', ADV_TRANSLATE)}
+            <p className="text-sm text-muted mt-1">Подсказка со словами появится после первой ошибки.</p>
+            <div key={'r' + round} className="mt-4 space-y-5">
+              {order.translate.map((q, i) => (
+                <SentenceQuestion key={q.id} q={q} index={i} solved={!!progress[q.id]} onCorrect={onCorrect} placeholder="Перевод на английский"
+                  prompt={<p className="text-lg flex items-center gap-2"><Flag code="ru" className="w-5 h-3.5" /> {q.ru}</p>} />
+              ))}
+            </div>
+          </Panel>
+          <button onClick={() => openTab('test')} className="inline-flex items-center gap-2 bg-indigo text-surface px-5 py-2.5 rounded-xl font-medium transition-transform hover:-translate-y-0.5">К итоговому тесту <ArrowRight size={18} /></button>
+        </div>
+      )}
+
+      {tab === 'test' && <div className="fade-in"><FinalTest progress={progress} onCorrect={onCorrect} questions={ADV_TEST} /></div>}
+    </div>
+  );
+}
+
 /* ---------- Общий прогресс ---------- */
-const ALL_QUIZ_IDS = [...TENSE_QUIZ, ...TOBE_QUIZ, ...APOS, ...AAN_QUIZ, ...ZERO_QUIZ, ...FIX_QUIZ, ...PS_ALL].map((q) => q.id);
+const ALL_QUIZ_IDS = [...TENSE_QUIZ, ...TOBE_QUIZ, ...APOS, ...AAN_QUIZ, ...ZERO_QUIZ, ...FIX_QUIZ, ...PS_ALL, ...ADV_ALL].map((q) => q.id);
 const TOTAL = ALL_QUIZ_IDS.length;
 // Считаем только задания, которые есть в приложении сейчас (старые записи не ломают счётчик)
 function countSolved(progress) { return ALL_QUIZ_IDS.filter((id) => progress[id]).length; }
@@ -4201,6 +4505,7 @@ const NAV_GROUPS = [
     { key: 'possessive', label: 'Притяжательный падеж', icon: Quote },
     { key: 'articles', label: 'Артикли A / AN', icon: TypeIcon },
     { key: 'psimple', label: 'Present Simple', icon: PenLine },
+    { key: 'adverbs', label: 'Adverbs of Frequency', icon: Gauge },
   ] },
   { title: 'Тренажёры', items: [
     { key: 'checker', label: 'Проверка текста', icon: SpellCheck },
@@ -4214,37 +4519,68 @@ const NAV_GROUPS = [
 ];
 const NAV = NAV_GROUPS.flatMap((g) => g.items);
 
-function NavList({ view, go, progress }) {
+// Номер группы меню, в которой лежит раздел (-1 — «Главная» или раздел вне групп)
+const navGroupOf = (key) => NAV_GROUPS.findIndex((g) => g.title && g.items.some((i) => i.key === key));
+const FIRST_TITLED_GROUP = NAV_GROUPS.findIndex((g) => g.title);
+
+// Меню с раскрывающимися группами: открыта одна группа; группа текущего раздела раскрывается сама
+function NavList({ view, go, progress, idPrefix = 'nav' }) {
   const counts = {
     tenses: [TENSE_QUIZ.filter((q) => progress[q.id]).length, TENSE_QUIZ.length],
     tobe: [TOBE_QUIZ.filter((q) => progress[q.id]).length, TOBE_QUIZ.length],
     possessive: [APOS.filter((q) => progress[q.id]).length, APOS.length],
     articles: [[...AAN_QUIZ, ...ZERO_QUIZ, ...FIX_QUIZ].filter((q) => progress[q.id]).length, ARTICLE_TOTAL],
     psimple: [PS_ALL.filter((q) => progress[q.id]).length, PS_TOTAL],
+    adverbs: [ADV_ALL.filter((q) => progress[q.id]).length, ADV_TOTAL],
   };
+  const current = navGroupOf(view);
+  const [open, setOpen] = useState(current >= 0 ? current : FIRST_TITLED_GROUP);
+  useEffect(() => { if (current >= 0) setOpen(current); }, [view]);
+  const toggle = (gi) => setOpen((o) => (o === gi ? -1 : gi));
+
+  const item = ({ key, label, icon: Ic }, gi, visible) => {
+    const on = view === key;
+    const c = counts[key];
+    return (
+      <li key={key}>
+        <button onClick={() => go(key)} aria-current={on ? 'page' : undefined} tabIndex={visible ? 0 : -1} data-nav-item={key} data-group={gi}
+          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm text-left transition-all duration-200 ${on ? 'bg-indigoSoft text-indigo font-medium' : 'text-ink hover:bg-surface2'}`}>
+          <Ic size={17} className={on ? 'text-indigo' : 'text-muted'} />
+          <span className="flex-1">{label}</span>
+          {c && <span className={`text-[11px] tnum ${c[0] === c[1] ? 'text-green font-semibold' : 'text-muted'}`}>{c[0]}/{c[1]}</span>}
+        </button>
+      </li>
+    );
+  };
+
   return (
-    <nav aria-label="Разделы" className="flex flex-col gap-4">
-      {NAV_GROUPS.map((g, gi) => (
-        <div key={gi}>
-          {g.title && <p className="px-3 mb-1.5 text-[11px] uppercase tracking-[0.12em] text-muted font-medium">{g.title}</p>}
-          <ul className="flex flex-col gap-0.5">
-            {g.items.map(({ key, label, icon: Ic }) => {
-              const on = view === key;
-              const c = counts[key];
-              return (
-                <li key={key}>
-                  <button onClick={() => go(key)} aria-current={on ? 'page' : undefined}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm text-left transition-all duration-200 ${on ? 'bg-indigoSoft text-indigo font-medium' : 'text-ink hover:bg-surface2'}`}>
-                    <Ic size={17} className={on ? 'text-indigo' : 'text-muted'} />
-                    <span className="flex-1">{label}</span>
-                    {c && <span className={`text-[11px] tnum ${c[0] === c[1] ? 'text-green font-semibold' : 'text-muted'}`}>{c[0]}/{c[1]}</span>}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ))}
+    <nav aria-label="Разделы" className="flex flex-col gap-1.5">
+      {NAV_GROUPS.map((g, gi) => {
+        if (!g.title) return <ul key={gi} className="flex flex-col gap-0.5 mb-1">{g.items.map((it) => item(it, gi, true))}</ul>;
+        const isOpen = open === gi;
+        const panelId = `${idPrefix}-group-${gi}`;
+        const hasCurrent = current === gi;
+        const withCounts = g.items.filter((it) => counts[it.key]);
+        const done = withCounts.reduce((n, it) => n + counts[it.key][0], 0);
+        const total = withCounts.reduce((n, it) => n + counts[it.key][1], 0);
+        return (
+          <div key={gi} data-nav-group={gi}>
+            <button type="button" onClick={() => toggle(gi)} aria-expanded={isOpen} aria-controls={panelId} data-group-toggle={gi}
+              className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-left transition-colors duration-200 hover:bg-surface2 ${isOpen ? 'text-ink' : 'text-muted'}`}>
+              <span className="flex-1 text-[11px] uppercase tracking-[0.12em] font-semibold">{g.title}</span>
+              {total > 0 && <span className="text-[11px] tnum text-muted">{done}/{total}</span>}
+              {hasCurrent && !isOpen && <span className="w-1.5 h-1.5 rounded-full bg-indigo" aria-label="здесь открытый раздел" />}
+              <span aria-hidden="true" data-arrow className="inline-flex" style={{ transition: 'transform .25s ease', transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}><ChevronDown size={16} /></span>
+            </button>
+            <div id={panelId} role="region" aria-label={g.title} aria-hidden={!isOpen} inert={isOpen ? undefined : 'true'}
+              style={{ display: 'grid', gridTemplateRows: isOpen ? '1fr' : '0fr', opacity: isOpen ? 1 : 0, visibility: isOpen ? 'visible' : 'hidden', transition: `grid-template-rows .3s ease, opacity .25s ease, visibility 0s linear ${isOpen ? '0s' : '.3s'}` }}>
+              <div style={{ overflow: 'hidden', minHeight: 0 }}>
+                <ul className="flex flex-col gap-0.5 pt-0.5 pb-1">{g.items.map((it) => item(it, gi, isOpen))}</ul>
+              </div>
+            </div>
+          </div>
+        );
+      })}
     </nav>
   );
 }
@@ -4332,11 +4668,11 @@ function App() {
       </header>
 
       {/* Мобильное меню */}
-      <div className={`lg:hidden fixed inset-0 z-20 transition-opacity duration-300 ${menuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} aria-hidden={!menuOpen}>
+      <div data-drawer className={`lg:hidden fixed inset-0 z-20 transition-opacity duration-300 ${menuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} aria-hidden={!menuOpen}>
         <div className="absolute inset-0" style={{ background: 'color-mix(in srgb, var(--ink) 35%, transparent)' }} onClick={() => setMenuOpen(false)} />
         <div className={`absolute left-0 top-0 bottom-0 w-[280px] max-w-[85vw] bg-surface border-r border-line shadow-xl transition-transform duration-300 ease-out overflow-y-auto ${menuOpen ? 'translate-x-0' : '-translate-x-full'}`}
           style={{ paddingTop: 'calc(76px + env(safe-area-inset-top, 0px))', paddingLeft: 'max(12px, env(safe-area-inset-left, 0px))', paddingRight: '12px', paddingBottom: 'calc(20px + env(safe-area-inset-bottom, 0px))' }}>
-          <NavList view={view} go={go} progress={progress} />
+          <NavList view={view} go={go} progress={progress} idPrefix="drawer" />
           <div className="mt-6 px-3 pt-4 border-t border-line"><AudienceBadge /></div>
         </div>
       </div>
@@ -4344,7 +4680,7 @@ function App() {
       <div className="gutter max-w-6xl mx-auto lg:grid lg:grid-cols-[230px_minmax(0,1fr)] lg:gap-8">
         <aside className="hidden lg:block">
           <div className="sticky py-8" style={{ top: 'calc(64px + env(safe-area-inset-top, 0px))' }}>
-            <NavList view={view} go={go} progress={progress} />
+            <NavList view={view} go={go} progress={progress} idPrefix="side" />
           </div>
         </aside>
         <main className="py-8 min-w-0">
@@ -4362,6 +4698,7 @@ function App() {
           {view === 'possessive' && <PossessiveView progress={progress} onCorrect={onCorrect} />}
           {view === 'articles' && <ArticlesView progress={progress} onCorrect={onCorrect} />}
           {view === 'psimple' && <PresentSimpleView progress={progress} onCorrect={onCorrect} />}
+          {view === 'adverbs' && <AdverbsView progress={progress} onCorrect={onCorrect} />}
           {view === 'checker' && <CheckerView />}
           {view === 'pronounce' && <PronounceView />}
         </main>

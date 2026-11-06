@@ -4,6 +4,7 @@ const { chromium } = require('playwright');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { goNav } = require('./helpers');
 
 const ROOT = path.resolve(__dirname, '..');
 const PORT = 9300 + Math.floor(Math.random() * 90);
@@ -43,7 +44,7 @@ async function setup(page, apis = 'off') {
   }
 }
 const mainText = async (page) => (await page.innerText('main')).replace(/\s+/g, ' ');
-const go = async (page, label) => { await page.click(`aside >> text=${label}`); await page.waitForTimeout(150); };
+const go = async (page, label) => { await goNav(page, label); await page.waitForTimeout(150); };
 
 (async () => {
   await new Promise((ok) => server.listen(PORT, ok));

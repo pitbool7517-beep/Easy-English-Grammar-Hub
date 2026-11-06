@@ -6,6 +6,7 @@ const { chromium } = require('playwright');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { goNav } = require('./helpers');
 
 const ROOT = path.resolve(__dirname, '..');
 const PORT = 8790 + Math.floor(Math.random() * 100);
@@ -59,19 +60,19 @@ async function routeLibraries(page, { breakCdn = false } = {}) {
   check('App loads and shows progress counter', total > 0, `total ${total}`);
 
   for (const label of ['Времена глаголов', 'Глагол TO BE', 'Притяжательный падеж', 'Артикли A / AN', 'Present Simple', 'Проверка текста', 'Произношение', 'Мои данные', 'Главная']) {
-    await page.click(`aside >> text=${label}`);
+    await goNav(page, label);
     await page.waitForTimeout(150);
   }
   check('All sections open without errors', errors.length === 0, errors.join(' | '));
 
   // 2a. Tenses mini-test: 9 questions
-  await page.click('aside >> text=Времена глаголов');
+  await goNav(page, 'Времена глаголов');
   const tenseScope = 'main section:has-text("Мини-тест: выберите правильное время")';
   for (const a of ['went', 'drinks', 'will call', 'play', 'visited', 'will rain', 'did', 'cooks', 'will go']) {
     await page.locator(`${tenseScope} button:text-is("${a}"):not([disabled])`).first().click();
   }
   // 2b. Apostrophe: 9 tasks, click the correct gap in each task
-  await page.click('aside >> text=Притяжательный падеж');
+  await goNav(page, 'Притяжательный падеж');
   const aposTasks = page.locator('main div.border-t').filter({ has: page.locator('button[aria-label^="Поставить апостроф"]') });
   const gaps = [3, 4, 5, 8, 7, 4, 3, 8, 3];
   check('Apostrophe: 9 tasks shown', (await aposTasks.count()) === 9, `${await aposTasks.count()}`);
@@ -81,7 +82,7 @@ async function routeLibraries(page, { breakCdn = false } = {}) {
   check('Apostrophe: all 9 answers counted', Object.keys(early).filter((k) => /^a\d+$/.test(k)).length === 9);
 
   // 2. Articles: answer every question correctly
-  await page.click('aside >> text=Артикли A / AN');
+  await goNav(page, 'Артикли A / AN');
   const answer = async (text, scope = 'main') => page.locator(`${scope} button:text-is("${text}"):not([disabled])`).first().click();
   const AAN = ['an', 'a', 'an', 'a', 'an', 'a', 'an', 'a', 'an', 'an', 'a', 'an'];
   for (const a of AAN) await answer(a);
@@ -95,7 +96,7 @@ async function routeLibraries(page, { breakCdn = false } = {}) {
   check('Articles: all 22 answers counted', artIds.length === 22, `${artIds.length}`);
 
   // 3. Present Simple (merged section): choose, type, find and fix — the original 23 tasks
-  await page.click('aside >> text=Present Simple');
+  await goNav(page, 'Present Simple');
   await page.click('main [role=tab]:has-text("Упражнения")');
   const psChoose = 'main section:has-text("1. Выберите форму")';
   for (const a of ['lives', 'play', 'watches', 'opens', 'drink', 'goes', 'work', 'studies', 'has', 'cries', 'live', 'plays']) await answer(a, psChoose);
@@ -125,7 +126,7 @@ async function routeLibraries(page, { breakCdn = false } = {}) {
   check('Progress survives reload and ignores unknown ids', h2.includes(`${after} / ${total}`), h2.replace(/\s+/g, ' ').trim());
 
   // 6. Reset asks for confirmation
-  await page.click('aside >> text=Главная');
+  await goNav(page, 'Главная');
   await page.click('main >> text=Сбросить прогресс');
   const stillThere = Object.keys(await progressOf(page)).length;
   check('Reset needs confirmation (nothing erased on first click)', stillThere > 0);
@@ -140,7 +141,7 @@ async function routeLibraries(page, { breakCdn = false } = {}) {
   for (const label of ['Артикли A / AN', 'Present Simple', 'Мои данные', 'Главная']) {
     await page.click('button[aria-label="Открыть меню разделов"]');
     await page.waitForTimeout(350);
-    await page.click(`text=${label} >> visible=true`);
+    await goNav(page, label, '[data-drawer]');
     await page.waitForTimeout(350);
     const w = await page.evaluate(() => document.documentElement.scrollWidth);
     if (w > 375) wide.push(`${label}: ${w}px`);

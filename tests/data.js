@@ -5,6 +5,7 @@ const http = require('http');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { goNav } = require('./helpers');
 
 const ROOT = path.resolve(__dirname, '..');
 const PORT = 8900 + Math.floor(Math.random() * 90);
@@ -37,7 +38,7 @@ const getJSON = async (page, key) => JSON.parse((await get(page, key)) || 'null'
 const set = (page, key, val) => page.evaluate(([k, v]) => localStorage.setItem(k, v), [key, val]);
 const counter = async (page) => ((await page.innerText('header')).match(/(\d+)\s*\/\s*(\d+)/) || [])[1];
 const reload = async (page) => { await page.reload(); await page.waitForSelector('aside nav', { timeout: 30000 }); };
-const openData = async (page) => { await page.click('aside >> text=Мои данные'); await page.waitForTimeout(150); };
+const openData = async (page) => { await goNav(page, 'Мои данные'); await page.waitForTimeout(150); };
 const importFile = async (page, file) => { await page.setInputFiles('#import-file', file); await page.waitForTimeout(250); };
 
 (async () => {
@@ -64,7 +65,7 @@ const importFile = async (page, file) => { await page.setInputFiles('#import-fil
   check('Migration: counter shows 3 (unknown id ignored)', (await counter(page)) === '3', await counter(page));
 
   // 2. New answers are saved with a date
-  await page.click('aside >> text=Времена глаголов');
+  await goNav(page, 'Времена глаголов');
   await page.locator('main section:has-text("Мини-тест") button:text-is("drinks")').click();
   const afterAnswer = await getJSON(page, V2);
   check('New answer stored with ISO date', afterAnswer.progress.t2 && /^\d{4}-\d\d-\d\dT/.test(afterAnswer.progress.t2.at || ''));
