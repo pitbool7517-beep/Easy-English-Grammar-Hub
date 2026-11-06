@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
 <title>Easy English Grammar Hub</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Lexend:wght@300;400;500;600&display=swap">
@@ -25,6 +26,15 @@
     --red-soft: #fde3e2;
     --amber: #c9871b;
     --amber-soft: #fbefd6;
+    /* Кнопка меню в шапке. Светлая тема — как раньше: прозрачная, подложка только при наведении */
+    --menu-btn-fg: var(--ink);
+    --menu-btn-bg: transparent;
+    --menu-btn-border: transparent;
+    --menu-btn-hover: var(--surface-2);
+    --menu-btn-open-bg: transparent;
+    --menu-btn-open-fg: var(--ink);
+    --menu-btn-open-border: transparent;
+    color-scheme: light;
     --font-display: "Fredoka", "Trebuchet MS", system-ui, sans-serif;
     --font-body: "Lexend", system-ui, -apple-system, "Segoe UI", sans-serif;
   }
@@ -33,13 +43,21 @@
       --bg: #141a2a; --surface: #1c2438; --surface-2: #242e46; --ink: #e8ecf7; --muted: #a2acc6; --line: #2f3a56;
       --blue: #8ab8f2; --blue-soft: #233a5c; --green: #7fd6ab; --green-soft: #1f4234; --indigo: #a7aaf5; --indigo-soft: #2e3163;
       --red: #f19a97; --red-soft: #4a2427; --amber: #f0c06a; --amber-soft: #463519; color-scheme: dark;
+      --menu-btn-bg: #2a3552; --menu-btn-border: #64759f; --menu-btn-hover: #334063; --menu-btn-open-bg: var(--indigo-soft); --menu-btn-open-fg: var(--indigo); --menu-btn-open-border: var(--indigo);
     }
   }
   :root[data-theme="dark"] {
     --bg: #141a2a; --surface: #1c2438; --surface-2: #242e46; --ink: #e8ecf7; --muted: #a2acc6; --line: #2f3a56;
     --blue: #8ab8f2; --blue-soft: #233a5c; --green: #7fd6ab; --green-soft: #1f4234; --indigo: #a7aaf5; --indigo-soft: #2e3163;
     --red: #f19a97; --red-soft: #4a2427; --amber: #f0c06a; --amber-soft: #463519; color-scheme: dark;
+    --menu-btn-bg: #2a3552; --menu-btn-border: #64759f; --menu-btn-hover: #334063; --menu-btn-open-bg: var(--indigo-soft); --menu-btn-open-fg: var(--indigo); --menu-btn-open-border: var(--indigo);
   }
+  /* Кнопка ☰ в шапке: свои цвета из токенов темы, не зависит от унаследованного цвета */
+  .menu-btn { color: var(--menu-btn-fg); background: var(--menu-btn-bg); border: 1.5px solid var(--menu-btn-border); transition: background-color .2s, color .2s, border-color .2s, transform .1s; }
+  .menu-btn svg { color: inherit; stroke: currentColor; }
+  .menu-btn:hover { background: var(--menu-btn-hover); }
+  .menu-btn:active { transform: scale(.94); }
+  .menu-btn[aria-expanded="true"] { background: var(--menu-btn-open-bg); color: var(--menu-btn-open-fg); border-color: var(--menu-btn-open-border); }
   body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.55; }
   body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
   .gutter { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
@@ -4649,7 +4667,7 @@ function App() {
         <FlagRibbon />
         <div className="gutter max-w-6xl mx-auto py-2.5 flex items-center gap-3">
           <button onClick={() => setMenuOpen((o) => !o)} aria-expanded={menuOpen} aria-label="Открыть меню разделов"
-            className="lg:hidden w-10 h-10 -ml-1 rounded-xl flex items-center justify-center hover:bg-surface2 transition-colors">
+            className="menu-btn lg:hidden w-10 h-10 -ml-1 rounded-xl flex items-center justify-center">
             {menuOpen ? <X size={21} /> : <Menu size={21} />}
           </button>
           <button onClick={() => go('home')} className="flex items-center gap-2.5 min-w-0">

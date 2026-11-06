@@ -36,6 +36,7 @@
 | `tests/psimple.js` | Автотест раздела «Present Simple» |
 | `tests/adverbs.js` | Автотест раздела «Adverbs of Frequency» |
 | `tests/nav.js` | Автотест раскрывающегося меню |
+| `tests/menubtn.js` | Автотест кнопки меню ☰ в обеих темах |
 | `tests/helpers.js` | Общие функции тестов (переход по меню с раскрытием группы) |
 | `tools/make-artifact.py` | Собирает версию для Claude-артефакта из `index.html` |
 
@@ -91,6 +92,7 @@ node tests/services.js # подсказки написания, простые �
 node tests/psimple.js # раздел Present Simple: правила, упражнения, тест, сохранность прогресса
 node tests/adverbs.js # раздел Adverbs of Frequency: грамматика примеров, упражнения, тест
 node tests/nav.js     # раскрывающееся меню: группы, одна открытая, телефон
+node tests/menubtn.js # кнопка ☰ в шапке: контраст в светлой и тёмной теме, все состояния
 ```
 
 Тест проверяет: загрузку, все разделы, засчёт ответов в «Артиклях» и Present Simple,
