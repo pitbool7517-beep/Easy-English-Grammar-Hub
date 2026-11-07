@@ -57,7 +57,7 @@
   .menu-btn svg { color: inherit; stroke: currentColor; }
   .menu-btn:hover { background: var(--menu-btn-hover); }
   .menu-btn:active { transform: scale(.94); }
-  .menu-btn[aria-expanded="true"] { background: var(--menu-btn-open-bg); color: var(--menu-btn-open-fg); border-color: var(--menu-btn-open-border); }
+  .menu-btn[aria-expanded="true"]:not([data-mode="desktop"]) { background: var(--menu-btn-open-bg); color: var(--menu-btn-open-fg); border-color: var(--menu-btn-open-border); }
   body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.55; }
   body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
   .gutter { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
@@ -4641,6 +4641,18 @@ function App() {
   const [saveFailed, setSaveFailed] = useState(false);
   const [toast, setToast] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  // Широкий экран (≥1024px): чашка прячет и показывает левое меню. Выбор помним в этом браузере.
+  const [isDesktop, setIsDesktop] = useState(() => { try { return window.matchMedia('(min-width: 1024px)').matches; } catch (e) { return false; } });
+  const [sideHidden, setSideHidden] = useState(() => { try { return localStorage.getItem('eegh-sidebar-hidden') === '1'; } catch (e) { return false; } });
+  useEffect(() => {
+    let mq;
+    try { mq = window.matchMedia('(min-width: 1024px)'); } catch (e) { return; }
+    const onChange = () => { setIsDesktop(mq.matches); if (mq.matches) setMenuOpen(false); };
+    mq.addEventListener ? mq.addEventListener('change', onChange) : mq.addListener(onChange);
+    return () => { mq.removeEventListener ? mq.removeEventListener('change', onChange) : mq.removeListener(onChange); };
+  }, []);
+  useEffect(() => { try { localStorage.setItem('eegh-sidebar-hidden', sideHidden ? '1' : '0'); } catch (e) {} }, [sideHidden]);
+  const onMenuButton = () => (isDesktop ? setSideHidden((h) => !h) : setMenuOpen((o) => !o));
   useEffect(() => { setSaveFailed(!saveData(data)); }, [data]);
   useEffect(() => { setMyMemoryEmail(data.settings && data.settings.mymemoryEmail); }, [data.settings && data.settings.mymemoryEmail]);
   useEffect(() => {
@@ -4680,9 +4692,14 @@ function App() {
       <header className="sticky z-30 bg-surface border-b border-line" style={{ top: 'env(safe-area-inset-top, 0px)' }}>
         <FlagRibbon />
         <div className="gutter max-w-6xl mx-auto py-2.5 flex items-center gap-3">
-          <button onClick={() => setMenuOpen((o) => !o)} aria-expanded={menuOpen} aria-label="Открыть меню разделов" title={menuOpen ? 'Закрыть меню' : 'Меню разделов'}
-            className="menu-btn lg:hidden w-10 h-10 -ml-1 rounded-xl flex items-center justify-center">
-            {menuOpen ? <X size={21} /> : <TeaMenuIcon size={22} />}
+          <button onClick={onMenuButton}
+            aria-expanded={isDesktop ? !sideHidden : menuOpen}
+            aria-controls={isDesktop ? 'side-menu' : undefined}
+            aria-label={isDesktop ? (sideHidden ? 'Показать меню разделов' : 'Скрыть меню разделов') : 'Открыть меню разделов'}
+            title={isDesktop ? (sideHidden ? 'Показать меню' : 'Скрыть меню') : (menuOpen ? 'Закрыть меню' : 'Меню разделов')}
+            data-mode={isDesktop ? 'desktop' : 'phone'}
+            className="menu-btn w-10 h-10 -ml-1 rounded-xl flex items-center justify-center">
+            {!isDesktop && menuOpen ? <X size={21} /> : <TeaMenuIcon size={22} />}
           </button>
           <button onClick={() => go('home')} className="flex items-center gap-2.5 min-w-0">
             <span className="relative w-9 h-9 rounded-xl bg-indigo text-surface flex items-center justify-center shrink-0" data-logo>
@@ -4709,8 +4726,8 @@ function App() {
         </div>
       </div>
 
-      <div className="gutter max-w-6xl mx-auto lg:grid lg:grid-cols-[230px_minmax(0,1fr)] lg:gap-8">
-        <aside className="hidden lg:block">
+      <div className={`gutter max-w-6xl mx-auto lg:grid lg:gap-8 ${sideHidden ? 'lg:grid-cols-[minmax(0,1fr)]' : 'lg:grid-cols-[230px_minmax(0,1fr)]'}`}>
+        <aside id="side-menu" className={sideHidden ? 'hidden' : 'hidden lg:block'} data-side-hidden={sideHidden ? '1' : '0'}>
           <div className="sticky py-8" style={{ top: 'calc(64px + env(safe-area-inset-top, 0px))' }}>
             <NavList view={view} go={go} progress={progress} idPrefix="side" />
           </div>

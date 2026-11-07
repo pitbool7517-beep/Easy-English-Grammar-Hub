@@ -105,6 +105,23 @@ const itemVisible = (page, key, scope = 'aside') => page.locator(`${scope} [data
   }
   check('Every page opens from the menu and is marked as current', failedPages.length === 0, failedPages.join(', '));
 
+  // 5b. Wide screen: the tea-cup button hides and shows the sidebar, choice is remembered
+  const deskBtn = page.locator('header button[data-mode]');
+  check('Wide screen: tea-cup button is shown (not phone-only anymore)', !(await deskBtn.getAttribute('class')).includes('lg:hidden') && (await deskBtn.getAttribute('data-mode')) === 'desktop');
+  check('Wide screen: button says "Скрыть меню разделов", sidebar open', (await deskBtn.getAttribute('aria-label')) === 'Скрыть меню разделов' && (await deskBtn.getAttribute('aria-expanded')) === 'true' && (await page.getAttribute('aside', 'data-side-hidden')) === '0');
+  await deskBtn.click(); await page.waitForTimeout(200);
+  const asideCls = await page.getAttribute('aside', 'class');
+  const gridCls = await page.$eval('aside', (a) => a.parentElement.className);
+  check('Wide screen: click hides the sidebar and gives its place to the content', asideCls === 'hidden' && gridCls.includes('lg:grid-cols-[minmax(0,1fr)]') && (await deskBtn.getAttribute('aria-expanded')) === 'false', `${asideCls} | ${gridCls}`);
+  check('Wide screen: the phone drawer does not open', (await page.getAttribute('[data-drawer]', 'aria-hidden')) === 'true');
+  check('Wide screen: label switches to "Показать меню разделов"', (await deskBtn.getAttribute('aria-label')) === 'Показать меню разделов');
+  await page.reload(); await page.waitForSelector('aside nav');
+  check('Wide screen: hidden sidebar is remembered after reload', (await page.getAttribute('aside', 'data-side-hidden')) === '1');
+  await page.locator('header button[data-mode]').click(); await page.waitForTimeout(200);
+  check('Wide screen: second click shows the sidebar again', (await page.getAttribute('aside', 'class')).includes('lg:block') && (await page.getAttribute('aside', 'data-side-hidden')) === '0');
+  // reload reset the menu state; restore "last page = Мои данные, now on Главная" for the phone checks
+  await goNav(page, 'Мои данные'); await goNav(page, 'Главная');
+
   // 6. Phone menu
   await page.setViewportSize({ width: 375, height: 800 });
   await page.waitForTimeout(200);
